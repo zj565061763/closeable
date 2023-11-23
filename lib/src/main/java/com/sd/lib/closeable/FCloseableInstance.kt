@@ -10,7 +10,7 @@ class Holder<T : AutoCloseable>(val instance: T)
 
 object FCloseableInstance {
     private val _store: MutableMap<Class<out AutoCloseable>, KeyedHolderFactory<out AutoCloseable>> = hashMapOf()
-    private val _timer = IntervalTimer(5 * 1000) {
+    private val _timer = IntervalTimer(60 * 1000) {
         Log.i(FCloseableInstance::class.java.simpleName, "timer")
         close()
     }
