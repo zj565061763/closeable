@@ -23,17 +23,21 @@ object FCloseableInstance {
     }
 
     @JvmStatic
-    fun close() {
+    @JvmOverloads
+    fun close(errorHandler: (Exception) -> Unit = { it.printStackTrace() }) {
         synchronized(this@FCloseableInstance) {
             _store.iterator().let { iterator ->
                 while (iterator.hasNext()) {
                     val item = iterator.next()
-                    try {
-                        item.value.close { it.close() }
-                    } finally {
-                        if (item.value.isEmpty()) {
-                            iterator.remove()
+                    item.value.close {
+                        try {
+                            it.close()
+                        } catch (e: Exception) {
+                            errorHandler(e)
                         }
+                    }
+                    if (item.value.isEmpty()) {
+                        iterator.remove()
                     }
                 }
             }
