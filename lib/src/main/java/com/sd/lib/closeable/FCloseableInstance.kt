@@ -6,7 +6,7 @@ import android.util.Log
 import java.util.WeakHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
-class Holder<T : AutoCloseable>(val instance: T)
+class Holder<T : AutoCloseable> internal constructor(val instance: T)
 
 object FCloseableInstance {
     private val _store: MutableMap<Class<out AutoCloseable>, KeyedHolderFactory<out AutoCloseable>> = hashMapOf()
