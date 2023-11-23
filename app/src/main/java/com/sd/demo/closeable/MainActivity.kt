@@ -14,10 +14,11 @@ class MainActivity : AppCompatActivity() {
         setContentView(_binding.root)
         _binding.btn.setOnClickListener {
             val holder1 = FCloseableInstance.key("key") { MyCloseable() }
+            holder1.instance.method()
+
             val holder2 = FCloseableInstance.key("key") { MyCloseable() }
-            check(holder1.get() === holder2.get())
-            holder1.get().method()
-            holder2.get().method()
+            holder2.instance.method()
+            check(holder1.instance === holder2.instance)
         }
     }
 }
