@@ -6,12 +6,10 @@ import android.util.Log
 import java.util.WeakHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
-private const val TAG = "FCloseableInstance"
-
 object FCloseableInstance {
     private val _store: MutableMap<Class<out AutoCloseable>, KeyedHolderFactory<out AutoCloseable>> = hashMapOf()
-    private val _timer = IntervalTimer(60 * 1000) {
-        Log.i(TAG, "timer")
+    private val _timer = IntervalTimer(5 * 1000) {
+        Log.i(FCloseableInstance::class.java.simpleName, "timer")
         close()
     }
 
@@ -56,11 +54,7 @@ object FCloseableInstance {
         }
     }
 
-    class Holder<T : AutoCloseable>(val instance: T) {
-        protected fun finalize() {
-            Log.i(TAG, "finalize $this")
-        }
-    }
+    class Holder<T : AutoCloseable>(val instance: T)
 
     private class KeyedHolderFactory<T : AutoCloseable> {
         private val _store: MutableMap<Any, HolderFactory<T>> = hashMapOf()
