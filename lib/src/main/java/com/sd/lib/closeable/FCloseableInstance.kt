@@ -31,8 +31,7 @@ object FCloseableInstance {
         }
     }
 
-    @JvmStatic
-    private fun close(errorHandler: (Exception) -> Unit = { it.printStackTrace() }) {
+    private fun close() {
         synchronized(this@FCloseableInstance) {
             _store.iterator().let { iterator ->
                 while (iterator.hasNext()) {
@@ -41,7 +40,7 @@ object FCloseableInstance {
                         try {
                             it.close()
                         } catch (e: Exception) {
-                            errorHandler(e)
+                            e.printStackTrace()
                         }
                     }
                     if (item.value.isEmpty()) {
