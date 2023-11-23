@@ -6,6 +6,8 @@ import android.util.Log
 import java.util.WeakHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
+class Holder<T : AutoCloseable>(val instance: T)
+
 object FCloseableInstance {
     private val _store: MutableMap<Class<out AutoCloseable>, KeyedHolderFactory<out AutoCloseable>> = hashMapOf()
     private val _timer = IntervalTimer(5 * 1000) {
@@ -53,8 +55,6 @@ object FCloseableInstance {
             }
         }
     }
-
-    class Holder<T : AutoCloseable>(val instance: T)
 
     private class KeyedHolderFactory<T : AutoCloseable> {
         private val _store: MutableMap<Any, HolderFactory<T>> = hashMapOf()
