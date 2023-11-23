@@ -4,7 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import java.util.WeakHashMap
-import kotlin.concurrent.thread
+import java.util.concurrent.atomic.AtomicBoolean
 
 private const val TAG = "FCloseableInstance"
 
@@ -21,12 +21,13 @@ object FCloseableInstance {
 
     @JvmStatic
     fun <T : AutoCloseable> key(clazz: Class<T>, key: Any, factory: () -> T): Holder<T> {
-        _timer.start()
         synchronized(this@FCloseableInstance) {
             val keyedHolderFactory = _store[clazz] ?: KeyedHolderFactory<T>().also {
                 _store[clazz] = it
             }
-            return (keyedHolderFactory as KeyedHolderFactory<T>).create(key, factory) as Holder<T>
+            return (keyedHolderFactory as KeyedHolderFactory<T>).create(key, factory).also {
+                _timer.start()
+            }
         }
     }
 
@@ -47,6 +48,10 @@ object FCloseableInstance {
                         iterator.remove()
                     }
                 }
+            }
+
+            if (_store.isEmpty()) {
+                _timer.stop()
             }
         }
     }
@@ -114,25 +119,34 @@ object FCloseableInstance {
 
 private class IntervalTimer(
     private val interval: Long,
-    private val runnable: Runnable,
+    private val task: Runnable,
 ) {
+    private val _started = AtomicBoolean(false)
     private val _handler = Handler(Looper.getMainLooper())
 
-    private val _thread by lazy {
-        thread {
-            while (true) {
-                try {
-                    Thread.sleep(interval)
-                } catch (e: InterruptedException) {
-                    e.printStackTrace()
-                } finally {
-                    _handler.post(runnable)
-                }
-            }
+    fun start() {
+        if (_started.compareAndSet(false, true)) {
+            _handler.postDelayed(_loopRunnable, interval)
         }
     }
 
-    fun start() {
-        _thread
+    fun stop() {
+        if (_started.compareAndSet(true, false)) {
+            _handler.removeCallbacks(_loopRunnable)
+        }
+    }
+
+    private val _loopRunnable = object : Runnable {
+        override fun run() {
+            if (_started.get()) {
+                try {
+                    task.run()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    _handler.postDelayed(this, interval)
+                }
+            }
+        }
     }
 }
