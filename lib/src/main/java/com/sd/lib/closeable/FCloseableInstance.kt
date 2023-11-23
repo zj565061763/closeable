@@ -1,12 +1,19 @@
 package com.sd.lib.closeable
 
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import java.util.WeakHashMap
+import kotlin.concurrent.thread
 
 private const val TAG = "FCloseableInstance"
 
 object FCloseableInstance {
     private val _store: MutableMap<Class<out AutoCloseable>, KeyedHolderFactory<out AutoCloseable>> = hashMapOf()
+    private val _timer = IntervalTimer(60 * 1000) {
+        Log.i(TAG, "timer")
+        close()
+    }
 
     inline fun <reified T : AutoCloseable> key(key: Any, noinline factory: () -> T): Holder<T> {
         return key(T::class.java, key, factory)
@@ -14,6 +21,7 @@ object FCloseableInstance {
 
     @JvmStatic
     fun <T : AutoCloseable> key(clazz: Class<T>, key: Any, factory: () -> T): Holder<T> {
+        _timer.start()
         synchronized(this@FCloseableInstance) {
             val keyedHolderFactory = _store[clazz] ?: KeyedHolderFactory<T>().also {
                 _store[clazz] = it
@@ -23,8 +31,7 @@ object FCloseableInstance {
     }
 
     @JvmStatic
-    @JvmOverloads
-    fun close(errorHandler: (Exception) -> Unit = { it.printStackTrace() }) {
+    private fun close(errorHandler: (Exception) -> Unit = { it.printStackTrace() }) {
         synchronized(this@FCloseableInstance) {
             _store.iterator().let { iterator ->
                 while (iterator.hasNext()) {
@@ -102,5 +109,30 @@ object FCloseableInstance {
                 _instance = null
             }
         }
+    }
+}
+
+private class IntervalTimer(
+    private val interval: Long,
+    private val runnable: Runnable,
+) {
+    private val _handler = Handler(Looper.getMainLooper())
+
+    private val _thread by lazy {
+        thread {
+            while (true) {
+                try {
+                    Thread.sleep(interval)
+                } catch (e: InterruptedException) {
+                    e.printStackTrace()
+                } finally {
+                    _handler.post(runnable)
+                }
+            }
+        }
+    }
+
+    fun start() {
+        _thread
     }
 }
