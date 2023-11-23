@@ -22,6 +22,24 @@ object FCloseableInstance {
         }
     }
 
+    @JvmStatic
+    fun close() {
+        synchronized(this@FCloseableInstance) {
+            _store.iterator().let { iterator ->
+                while (iterator.hasNext()) {
+                    val item = iterator.next()
+                    try {
+                        item.value.close { it.close() }
+                    } finally {
+                        if (item.value.isEmpty()) {
+                            iterator.remove()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     class Holder<T : AutoCloseable>(val instance: T) {
         protected fun finalize() {
             Log.i(TAG, "finalize $this")
@@ -38,20 +56,25 @@ object FCloseableInstance {
             return holderFactory.create(factory)
         }
 
-        fun isEmpty(): Boolean {
-            return _store.iterator().let {
-                while (it.hasNext()) {
-                    val item = it.next()
-                    if (item.value.isEmpty()) {
-                        it.remove()
+        inline fun close(block: (AutoCloseable) -> Unit) {
+            return _store.iterator().let { iterator ->
+                while (iterator.hasNext()) {
+                    val item = iterator.next()
+                    item.value.closeable()?.let {
+                        try {
+                            block(it)
+                        } finally {
+                            iterator.remove()
+                        }
                     }
                 }
-                _store.isEmpty()
             }
         }
+
+        fun isEmpty() = _store.isEmpty()
     }
 
-    private class HolderFactory<T : AutoCloseable> {
+    private class HolderFactory<T : AutoCloseable> : AutoCloseable {
         private var _instance: T? = null
         private val _holders = WeakHashMap<Holder<T>, String>()
 
@@ -64,15 +87,15 @@ object FCloseableInstance {
             }
         }
 
-        fun isEmpty(): Boolean {
-            return _holders.isEmpty().also {
-                if (it) {
-                    try {
-                        _instance?.close()
-                    } finally {
-                        _instance = null
-                    }
-                }
+        fun closeable(): AutoCloseable? {
+            return if (_holders.isEmpty()) this else null
+        }
+
+        override fun close() {
+            try {
+                _instance?.close()
+            } finally {
+                _instance = null
             }
         }
     }
