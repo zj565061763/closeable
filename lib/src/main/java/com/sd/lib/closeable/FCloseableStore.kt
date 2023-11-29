@@ -34,14 +34,14 @@ object FCloseableStore {
                     item.value.close { key, closeable ->
                         try {
                             closeable.close()
-                            Log.d(FCloseableStore::class.java.simpleName, "close ${item.key.name} with key:$key")
+                            Log.d(FCloseableStore::class.java.simpleName, "${item.key.name} close key:$key")
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
                     }.let { size ->
                         if (size <= 0) {
                             iterator.remove()
-                            Log.d(FCloseableStore::class.java.simpleName, "remove ${item.key.name}")
+                            Log.d(FCloseableStore::class.java.simpleName, "${item.key.name} removed")
                         }
                     }
                 }
