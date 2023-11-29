@@ -6,9 +6,9 @@ class AppCloseableImpl : AppCloseable {
         logMsg { "${this@AppCloseableImpl} init" }
     }
 
-    override fun method(msg: String): String {
+    override fun method(value: Int): Int {
         logMsg { "${this@AppCloseableImpl} method" }
-        return msg
+        return 1
     }
 
     protected fun finalize() {
