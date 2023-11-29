@@ -112,8 +112,8 @@ private class SafeIdleHandler(private val block: () -> Boolean) {
     private var _idleHandler: IdleHandler? = null
 
     fun register(): Boolean {
+        Looper.myLooper() ?: return false
         synchronized(this@SafeIdleHandler) {
-            Looper.myLooper() ?: return false
             _idleHandler?.let { return true }
             IdleHandler {
                 block().also { sticky ->
