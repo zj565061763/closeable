@@ -1,5 +1,6 @@
 package com.sd.lib.closeable
 
+import android.os.Handler
 import android.os.Looper
 import android.os.MessageQueue.IdleHandler
 import android.util.Log
@@ -27,7 +28,7 @@ object FCloseableInstance {
                 _store[clazz] = it
             }
             return (keyedHolderFactory as KeyedHolderFactory<T>).create(key, factory).also {
-                _idleHandler.register()
+                _idleHandler.registerMain()
             }
         }
     }
@@ -110,6 +111,13 @@ object FCloseableInstance {
 
 private class SafeIdleHandler(private val block: () -> Boolean) {
     private var _idleHandler: IdleHandler? = null
+
+    fun registerMain(): Boolean {
+        val mainLooper = Looper.getMainLooper() ?: return false
+        if (mainLooper === Looper.myLooper()) return register()
+        Handler(mainLooper).post { register() }
+        return true
+    }
 
     fun register(): Boolean {
         Looper.myLooper() ?: return false
