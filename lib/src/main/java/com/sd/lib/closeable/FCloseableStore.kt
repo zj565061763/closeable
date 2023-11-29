@@ -98,7 +98,7 @@ private class HolderFactory<T : AutoCloseable> : AutoCloseable {
     }
 
     /**
-     * 如果返回不为null，说明当前[_instance]关联的[FCloseableStore.Holder]对象已经全部被回收，
+     * 如果返回不为null，说明当前[_instance]关联的所有[FCloseableStore.Holder]对象已经没有强引用了，
      * 此时调用返回对象的[AutoCloseable.close]方法可以关闭[_instance]
      */
     fun closeable(): AutoCloseable? {
