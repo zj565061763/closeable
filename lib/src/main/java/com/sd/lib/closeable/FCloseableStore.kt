@@ -15,6 +15,9 @@ object FCloseableStore {
         return key(T::class.java, key, factory)
     }
 
+    /**
+     * 返回[key]关联的[Holder]对象，外部应该保存[Holder]对象，并通过[Holder.instance]方法实时获取目标对象
+     */
     @JvmStatic
     fun <T : AutoCloseable> key(clazz: Class<T>, key: Any, factory: () -> T): Holder<T> {
         synchronized(this@FCloseableStore) {
