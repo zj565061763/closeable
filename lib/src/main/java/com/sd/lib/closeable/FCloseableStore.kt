@@ -11,7 +11,7 @@ object FCloseableStore {
     private val _store: MutableMap<Class<out AutoCloseable>, KeyedHolderFactory<out AutoCloseable>> = hashMapOf()
     private val _idleHandler = SafeIdleHandler { close() > 0 }
 
-    inline fun <reified T : AutoCloseable> key(key: Any, noinline factory: () -> T): Holder<T> {
+    inline fun <reified T : AutoCloseable> key(key: String, noinline factory: () -> T): Holder<T> {
         return key(T::class.java, key, factory)
     }
 
@@ -19,7 +19,7 @@ object FCloseableStore {
      * 返回[key]关联的[Holder]对象，外部应该保存[Holder]对象，并通过[Holder.instance]方法实时获取目标对象
      */
     @JvmStatic
-    fun <T : AutoCloseable> key(clazz: Class<T>, key: Any, factory: () -> T): Holder<T> {
+    fun <T : AutoCloseable> key(clazz: Class<T>, key: String, factory: () -> T): Holder<T> {
         synchronized(this@FCloseableStore) {
             val keyedHolderFactory = _store[clazz] ?: KeyedHolderFactory<T>().also {
                 _store[clazz] = it
@@ -57,16 +57,16 @@ object FCloseableStore {
 }
 
 private class KeyedHolderFactory<T : AutoCloseable> {
-    private val _store: MutableMap<Any, HolderFactory<T>> = hashMapOf()
+    private val _store: MutableMap<String, HolderFactory<T>> = hashMapOf()
 
-    fun create(key: Any, factory: () -> T): FCloseableStore.Holder<T> {
+    fun create(key: String, factory: () -> T): FCloseableStore.Holder<T> {
         val holderFactory = _store[key] ?: HolderFactory<T>().also {
             _store[key] = it
         }
         return holderFactory.create(factory)
     }
 
-    inline fun close(block: (Any, AutoCloseable) -> Unit): Int {
+    inline fun close(block: (String, AutoCloseable) -> Unit): Int {
         _store.iterator().let { iterator ->
             while (iterator.hasNext()) {
                 val item = iterator.next()
