@@ -14,10 +14,10 @@ class MainActivity : AppCompatActivity() {
         setContentView(_binding.root)
         _binding.btn.setOnClickListener {
             val c1 = FCloseableStore.key("key", AppCloseable::class.java) { AppCloseableImpl() }
-            c1.method()
+            logMsg { "c1 result:${c1.method("hello")}" }
 
             val c2 = FCloseableStore.key("key", AppCloseable::class.java) { AppCloseableImpl() }
-            c2.method()
+            logMsg { "c2 result:${c1.method("world")}" }
 
             check(c1 !== c2)
         }
