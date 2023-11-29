@@ -1,17 +1,16 @@
 package com.sd.lib.closeable
 
-import android.os.Handler
 import android.os.Looper
+import android.os.MessageQueue.IdleHandler
 import android.util.Log
 import java.util.WeakHashMap
-import java.util.concurrent.atomic.AtomicBoolean
 
 class Holder<T : AutoCloseable> internal constructor(val instance: T)
 
 object FCloseableInstance {
     private val _store: MutableMap<Class<out AutoCloseable>, KeyedHolderFactory<out AutoCloseable>> = hashMapOf()
-    private val _timer = IntervalTimer(60 * 1000) {
-        Log.i(FCloseableInstance::class.java.simpleName, "timer")
+    private val _idleHandler = SafeIdleHandler {
+        Log.d(FCloseableInstance::class.java.simpleName, "close")
         close()
     }
 
@@ -26,7 +25,7 @@ object FCloseableInstance {
                 _store[clazz] = it
             }
             return (keyedHolderFactory as KeyedHolderFactory<T>).create(key, factory).also {
-                _timer.start()
+                _idleHandler.register()
             }
         }
     }
@@ -47,10 +46,6 @@ object FCloseableInstance {
                         iterator.remove()
                     }
                 }
-            }
-
-            if (_store.isEmpty()) {
-                _timer.stop()
             }
         }
     }
@@ -110,36 +105,19 @@ object FCloseableInstance {
     }
 }
 
-private class IntervalTimer(
-    private val interval: Long,
-    private val task: Runnable,
-) {
-    private val _started = AtomicBoolean(false)
-    private val _handler = Handler(Looper.getMainLooper())
+private class SafeIdleHandler(private val block: () -> Unit) {
+    private var _idleHandler: IdleHandler? = null
 
-    fun start() {
-        if (_started.compareAndSet(false, true)) {
-            _handler.postDelayed(_loopRunnable, interval)
+    fun register(): Boolean {
+        Looper.myLooper() ?: return false
+        _idleHandler?.let { return true }
+        val idleHandler = IdleHandler {
+            block()
+            _idleHandler = null
+            false
         }
-    }
-
-    fun stop() {
-        if (_started.compareAndSet(true, false)) {
-            _handler.removeCallbacks(_loopRunnable)
-        }
-    }
-
-    private val _loopRunnable = object : Runnable {
-        override fun run() {
-            if (_started.get()) {
-                try {
-                    task.run()
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                } finally {
-                    _handler.postDelayed(this, interval)
-                }
-            }
-        }
+        _idleHandler = idleHandler
+        Looper.myQueue().addIdleHandler(idleHandler)
+        return true
     }
 }
