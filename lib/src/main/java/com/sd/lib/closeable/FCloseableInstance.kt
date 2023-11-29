@@ -112,11 +112,13 @@ object FCloseableInstance {
 private class SafeIdleHandler(private val block: () -> Boolean) {
     private var _idleHandler: IdleHandler? = null
 
-    fun registerMain(): Boolean {
-        val mainLooper = Looper.getMainLooper() ?: return false
-        if (mainLooper === Looper.myLooper()) return register()
-        Handler(mainLooper).post { register() }
-        return true
+    fun registerMain() {
+        val mainLooper = Looper.getMainLooper() ?: return
+        if (mainLooper === Looper.myLooper()) {
+            register()
+        } else {
+            Handler(mainLooper).post { register() }
+        }
     }
 
     fun register(): Boolean {
