@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import com.sd.demo.closeable.databinding.ActivityMainBinding
 import com.sd.lib.closeable.FCloseableStore
+import com.sd.lib.closeable.getValue
 
 class MainActivity : AppCompatActivity() {
     private val _binding by lazy { ActivityMainBinding.inflate(layoutInflater) }
@@ -13,12 +14,13 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(_binding.root)
         _binding.btn.setOnClickListener {
-            val holder1 = FCloseableStore.key("key") { MyCloseable() }
-            holder1.instance.method()
+            val c1 by FCloseableStore.key("key") { MyCloseable() }
+            c1.method()
 
-            val holder2 = FCloseableStore.key("key") { MyCloseable() }
-            holder2.instance.method()
-            check(holder1.instance === holder2.instance)
+            val c2 by FCloseableStore.key("key") { MyCloseable() }
+            c2.method()
+
+            check(c1 === c2)
         }
     }
 }

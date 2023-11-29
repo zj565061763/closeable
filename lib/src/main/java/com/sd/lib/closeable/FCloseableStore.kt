@@ -5,8 +5,7 @@ import android.os.Looper
 import android.os.MessageQueue.IdleHandler
 import android.util.Log
 import java.util.WeakHashMap
-
-class Holder<T : AutoCloseable> internal constructor(val instance: T)
+import kotlin.reflect.KProperty
 
 object FCloseableStore {
     private val _store: MutableMap<Class<out AutoCloseable>, KeyedHolderFactory<out AutoCloseable>> = hashMapOf()
@@ -53,57 +52,59 @@ object FCloseableStore {
         }
     }
 
-    private class KeyedHolderFactory<T : AutoCloseable> {
-        private val _store: MutableMap<Any, HolderFactory<T>> = hashMapOf()
+    class Holder<T : AutoCloseable> internal constructor(val instance: T)
+}
 
-        fun create(key: Any, factory: () -> T): Holder<T> {
-            val holderFactory = _store[key] ?: HolderFactory<T>().also {
-                _store[key] = it
-            }
-            return holderFactory.create(factory)
+private class KeyedHolderFactory<T : AutoCloseable> {
+    private val _store: MutableMap<Any, HolderFactory<T>> = hashMapOf()
+
+    fun isEmpty() = _store.isEmpty()
+
+    fun create(key: Any, factory: () -> T): FCloseableStore.Holder<T> {
+        val holderFactory = _store[key] ?: HolderFactory<T>().also {
+            _store[key] = it
         }
+        return holderFactory.create(factory)
+    }
 
-        inline fun close(block: (AutoCloseable) -> Unit) {
-            return _store.iterator().let { iterator ->
-                while (iterator.hasNext()) {
-                    val item = iterator.next()
-                    item.value.closeable()?.let {
-                        try {
-                            block(it)
-                        } finally {
-                            iterator.remove()
-                        }
+    inline fun close(block: (AutoCloseable) -> Unit) {
+        return _store.iterator().let { iterator ->
+            while (iterator.hasNext()) {
+                val item = iterator.next()
+                item.value.closeable()?.let {
+                    try {
+                        block(it)
+                    } finally {
+                        iterator.remove()
                     }
                 }
             }
         }
+    }
+}
 
-        fun isEmpty() = _store.isEmpty()
+private class HolderFactory<T : AutoCloseable> : AutoCloseable {
+    private var _instance: T? = null
+    private val _holders = WeakHashMap<FCloseableStore.Holder<T>, String>()
+
+    fun create(factory: () -> T): FCloseableStore.Holder<T> {
+        val instance = _instance ?: factory().also {
+            _instance = it
+        }
+        return FCloseableStore.Holder(instance).also {
+            _holders[it] = ""
+        }
     }
 
-    private class HolderFactory<T : AutoCloseable> : AutoCloseable {
-        private var _instance: T? = null
-        private val _holders = WeakHashMap<Holder<T>, String>()
+    fun closeable(): AutoCloseable? {
+        return if (_holders.isEmpty()) this else null
+    }
 
-        fun create(factory: () -> T): Holder<T> {
-            val instance = _instance ?: factory().also {
-                _instance = it
-            }
-            return Holder(instance).also {
-                _holders[it] = ""
-            }
-        }
-
-        fun closeable(): AutoCloseable? {
-            return if (_holders.isEmpty()) this else null
-        }
-
-        override fun close() {
-            try {
-                _instance?.close()
-            } finally {
-                _instance = null
-            }
+    override fun close() {
+        try {
+            _instance?.close()
+        } finally {
+            _instance = null
         }
     }
 }
@@ -140,3 +141,6 @@ private class SafeIdleHandler(private val block: () -> Boolean) {
         }
     }
 }
+
+@Suppress("NOTHING_TO_INLINE")
+inline operator fun <T : AutoCloseable> FCloseableStore.Holder<T>.getValue(thisObj: Any?, property: KProperty<*>): T = instance
