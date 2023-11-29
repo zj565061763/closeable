@@ -13,17 +13,13 @@ object FCloseableStore {
     private val _store: MutableMap<Class<out AutoCloseable>, KeyedHolderFactory<out AutoCloseable>> = hashMapOf()
     private val _idleHandler = SafeIdleHandler { close() > 0 }
 
-    inline fun <reified T : AutoCloseable> key(key: String, noinline factory: () -> T): T {
-        return key(T::class.java, key, factory)
-    }
-
     /**
      * 根据[key]获取对象，[clazz]必须是接口，因为返回的是[clazz]接口的动态代理对象，代理对象代理[factory]创建的真实对象，
      * 当代理对象没有被强引用持有的时候，主线程会在空闲的时候调用真实对象的[AutoCloseable.close]方法释放资源。
      */
     @Suppress("UNCHECKED_CAST")
     @JvmStatic
-    fun <T : AutoCloseable> key(clazz: Class<T>, key: String, factory: () -> T): T {
+    fun <T : AutoCloseable> key(key: String, clazz: Class<T>, factory: () -> T): T {
         require(clazz.isInterface) { "clazz must be an interface" }
         require(clazz != AutoCloseable::class.java) { "clazz must not be:${AutoCloseable::class.java.name}" }
         synchronized(this@FCloseableStore) {

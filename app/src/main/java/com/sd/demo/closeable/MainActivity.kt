@@ -13,10 +13,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(_binding.root)
         _binding.btn.setOnClickListener {
-            val c1 = FCloseableStore.key<AppCloseable>("key") { AppCloseableImpl() }
+            val c1 = FCloseableStore.key("key", AppCloseable::class.java) { AppCloseableImpl() }
             c1.method()
 
-            val c2 = FCloseableStore.key<AppCloseable>("key") { AppCloseableImpl() }
+            val c2 = FCloseableStore.key("key", AppCloseable::class.java) { AppCloseableImpl() }
             c2.method()
         }
     }
