@@ -8,11 +8,11 @@ import java.util.WeakHashMap
 
 class Holder<T : AutoCloseable> internal constructor(val instance: T)
 
-object FCloseableInstance {
+object FCloseableStore {
     private val _store: MutableMap<Class<out AutoCloseable>, KeyedHolderFactory<out AutoCloseable>> = hashMapOf()
     private val _idleHandler = SafeIdleHandler {
         close().let { size ->
-            Log.d(FCloseableInstance::class.java.simpleName, "close size:$size")
+            Log.d(FCloseableStore::class.java.simpleName, "close size:$size")
             size > 0
         }
     }
@@ -23,7 +23,7 @@ object FCloseableInstance {
 
     @JvmStatic
     fun <T : AutoCloseable> key(clazz: Class<T>, key: Any, factory: () -> T): Holder<T> {
-        synchronized(this@FCloseableInstance) {
+        synchronized(this@FCloseableStore) {
             val keyedHolderFactory = _store[clazz] ?: KeyedHolderFactory<T>().also {
                 _store[clazz] = it
             }
@@ -34,7 +34,7 @@ object FCloseableInstance {
     }
 
     private fun close(): Int {
-        synchronized(this@FCloseableInstance) {
+        synchronized(this@FCloseableStore) {
             _store.iterator().let { iterator ->
                 while (iterator.hasNext()) {
                     val item = iterator.next()

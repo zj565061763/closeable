@@ -4,7 +4,7 @@ import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import com.sd.demo.closeable.databinding.ActivityMainBinding
-import com.sd.lib.closeable.FCloseableInstance
+import com.sd.lib.closeable.FCloseableStore
 
 class MainActivity : AppCompatActivity() {
     private val _binding by lazy { ActivityMainBinding.inflate(layoutInflater) }
@@ -13,10 +13,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(_binding.root)
         _binding.btn.setOnClickListener {
-            val holder1 = FCloseableInstance.key("key") { MyCloseable() }
+            val holder1 = FCloseableStore.key("key") { MyCloseable() }
             holder1.instance.method()
 
-            val holder2 = FCloseableInstance.key("key") { MyCloseable() }
+            val holder2 = FCloseableStore.key("key") { MyCloseable() }
             holder2.instance.method()
             check(holder1.instance === holder2.instance)
         }
