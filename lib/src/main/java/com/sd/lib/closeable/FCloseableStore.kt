@@ -42,9 +42,10 @@ object FCloseableStore {
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
-                    }
-                    if (item.value.isEmpty()) {
-                        iterator.remove()
+                    }.let { size ->
+                        if (size <= 0) {
+                            iterator.remove()
+                        }
                     }
                 }
             }
@@ -58,8 +59,6 @@ object FCloseableStore {
 private class KeyedHolderFactory<T : AutoCloseable> {
     private val _store: MutableMap<Any, HolderFactory<T>> = hashMapOf()
 
-    fun isEmpty() = _store.isEmpty()
-
     fun create(key: Any, factory: () -> T): FCloseableStore.Holder<T> {
         val holderFactory = _store[key] ?: HolderFactory<T>().also {
             _store[key] = it
@@ -67,8 +66,8 @@ private class KeyedHolderFactory<T : AutoCloseable> {
         return holderFactory.create(factory)
     }
 
-    inline fun close(block: (AutoCloseable) -> Unit) {
-        return _store.iterator().let { iterator ->
+    inline fun close(block: (AutoCloseable) -> Unit): Int {
+        _store.iterator().let { iterator ->
             while (iterator.hasNext()) {
                 val item = iterator.next()
                 item.value.closeable()?.let {
@@ -80,6 +79,7 @@ private class KeyedHolderFactory<T : AutoCloseable> {
                 }
             }
         }
+        return _store.size
     }
 }
 
