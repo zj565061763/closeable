@@ -27,9 +27,8 @@ object FCloseableStore {
             val keyedHolderFactory = _store[clazz] ?: KeyedHolderFactory<T>().also {
                 _store[clazz] = it
             }
-            return (keyedHolderFactory as KeyedHolderFactory<T>).create(key, factory).also {
-                _idleHandler.registerMain()
-            }
+            _idleHandler.registerMain()
+            return (keyedHolderFactory as KeyedHolderFactory<T>).create(key, factory)
         }
     }
 
