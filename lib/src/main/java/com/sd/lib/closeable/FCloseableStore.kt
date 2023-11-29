@@ -7,20 +7,25 @@ import android.util.Log
 import java.util.WeakHashMap
 import kotlin.reflect.KProperty
 
+class FCloseableHolder<T : AutoCloseable> internal constructor(val instance: T)
+
+@Suppress("NOTHING_TO_INLINE")
+inline operator fun <T : AutoCloseable> FCloseableHolder<T>.getValue(thisObj: Any?, property: KProperty<*>): T = instance
+
 object FCloseableStore {
     private val _store: MutableMap<Class<out AutoCloseable>, KeyedHolderFactory<out AutoCloseable>> = hashMapOf()
     private val _idleHandler = SafeIdleHandler { close() > 0 }
 
-    inline fun <reified T : AutoCloseable> key(key: String, noinline factory: () -> T): Holder<T> {
+    inline fun <reified T : AutoCloseable> key(key: String, noinline factory: () -> T): FCloseableHolder<T> {
         return key(T::class.java, key, factory)
     }
 
     /**
-     * 创建[key]关联的[Holder]对象，外部应该强引用持有[Holder]对象，并通过[Holder.instance]方法实时获取目标对象。
-     * 当[key]关联的所有[Holder]对象都没有被强引用的时候，主线程会在空闲的时候，触发[key]绑定目标对象的[AutoCloseable.close]方法。
+     * 创建[key]关联的[FCloseableHolder]对象，外部应该强引用持有[FCloseableHolder]对象，并通过[FCloseableHolder.instance]方法实时获取目标对象。
+     * 当[key]关联的所有[FCloseableHolder]对象都没有被强引用的时候，主线程会在空闲的时候，触发[key]绑定目标对象的[AutoCloseable.close]方法。
      */
     @JvmStatic
-    fun <T : AutoCloseable> key(clazz: Class<T>, key: String, factory: () -> T): Holder<T> {
+    fun <T : AutoCloseable> key(clazz: Class<T>, key: String, factory: () -> T): FCloseableHolder<T> {
         synchronized(this@FCloseableStore) {
             val keyedHolderFactory = _store[clazz] ?: KeyedHolderFactory<T>().also {
                 _store[clazz] = it
@@ -53,14 +58,12 @@ object FCloseableStore {
             return _store.size
         }
     }
-
-    class Holder<T : AutoCloseable> internal constructor(val instance: T)
 }
 
 private class KeyedHolderFactory<T : AutoCloseable> {
     private val _store: MutableMap<String, HolderFactory<T>> = hashMapOf()
 
-    fun create(key: String, factory: () -> T): FCloseableStore.Holder<T> {
+    fun create(key: String, factory: () -> T): FCloseableHolder<T> {
         val holderFactory = _store[key] ?: HolderFactory<T>().also {
             _store[key] = it
         }
@@ -86,20 +89,20 @@ private class KeyedHolderFactory<T : AutoCloseable> {
 
 private class HolderFactory<T : AutoCloseable> {
     private var _instance: T? = null
-    private val _holders = WeakHashMap<FCloseableStore.Holder<T>, String>()
+    private val _holders = WeakHashMap<FCloseableHolder<T>, String>()
 
-    fun create(factory: () -> T): FCloseableStore.Holder<T> {
+    fun create(factory: () -> T): FCloseableHolder<T> {
         val instance = _instance ?: factory().also {
             _instance = it
         }
-        return FCloseableStore.Holder(instance).also {
+        return FCloseableHolder(instance).also {
             _holders[it] = ""
         }
     }
 
     /**
-     * 如果返回不为null，说明当前[_instance]关联的所有[FCloseableStore.Holder]对象已经没有强引用了，
-     * 此时调用返回对象的[AutoCloseable.close]方法可以关闭[_instance]
+     * 如果返回不为null，说明当前[_instance]关联的所有[FCloseableHolder]对象已经没有强引用了，
+     * 可以调用返回对象的[AutoCloseable.close]方法可以关闭[_instance]
      */
     fun closeable(): AutoCloseable? {
         _instance ?: return null
@@ -148,5 +151,3 @@ private class SafeIdleHandler(private val block: () -> Boolean) {
     }
 }
 
-@Suppress("NOTHING_TO_INLINE")
-inline operator fun <T : AutoCloseable> FCloseableStore.Holder<T>.getValue(thisObj: Any?, property: KProperty<*>): T = instance
