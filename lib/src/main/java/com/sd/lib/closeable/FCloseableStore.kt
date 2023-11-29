@@ -84,7 +84,7 @@ private class KeyedHolderFactory<T : AutoCloseable> {
     }
 }
 
-private class HolderFactory<T : AutoCloseable> : AutoCloseable {
+private class HolderFactory<T : AutoCloseable> {
     private var _instance: T? = null
     private val _holders = WeakHashMap<FCloseableStore.Holder<T>, String>()
 
@@ -102,10 +102,11 @@ private class HolderFactory<T : AutoCloseable> : AutoCloseable {
      * 此时调用返回对象的[AutoCloseable.close]方法可以关闭[_instance]
      */
     fun closeable(): AutoCloseable? {
-        return if (_holders.isEmpty()) this else null
+        _instance ?: return null
+        return if (_holders.isEmpty()) _closeTask else null
     }
 
-    override fun close() {
+    private val _closeTask = AutoCloseable {
         try {
             _instance?.close()
         } finally {
