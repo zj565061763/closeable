@@ -10,8 +10,10 @@ class Holder<T : AutoCloseable> internal constructor(val instance: T)
 object FCloseableInstance {
     private val _store: MutableMap<Class<out AutoCloseable>, KeyedHolderFactory<out AutoCloseable>> = hashMapOf()
     private val _idleHandler = SafeIdleHandler {
-        Log.d(FCloseableInstance::class.java.simpleName, "close")
-        close()
+        close().let { size ->
+            Log.d(FCloseableInstance::class.java.simpleName, "close size:$size")
+            size > 0
+        }
     }
 
     inline fun <reified T : AutoCloseable> key(key: Any, noinline factory: () -> T): Holder<T> {
@@ -30,7 +32,7 @@ object FCloseableInstance {
         }
     }
 
-    private fun close() {
+    private fun close(): Int {
         synchronized(this@FCloseableInstance) {
             _store.iterator().let { iterator ->
                 while (iterator.hasNext()) {
@@ -47,6 +49,7 @@ object FCloseableInstance {
                     }
                 }
             }
+            return _store.size
         }
     }
 
@@ -105,19 +108,26 @@ object FCloseableInstance {
     }
 }
 
-private class SafeIdleHandler(private val block: () -> Unit) {
+private class SafeIdleHandler(private val block: () -> Boolean) {
     private var _idleHandler: IdleHandler? = null
 
     fun register(): Boolean {
-        Looper.myLooper() ?: return false
-        _idleHandler?.let { return true }
-        val idleHandler = IdleHandler {
-            block()
-            _idleHandler = null
-            false
+        synchronized(this@SafeIdleHandler) {
+            Looper.myLooper() ?: return false
+            _idleHandler?.let { return true }
+            IdleHandler {
+                block().also { sticky ->
+                    synchronized(this@SafeIdleHandler) {
+                        if (!sticky) {
+                            _idleHandler = null
+                        }
+                    }
+                }
+            }.also {
+                _idleHandler = it
+                Looper.myQueue().addIdleHandler(it)
+            }
+            return true
         }
-        _idleHandler = idleHandler
-        Looper.myQueue().addIdleHandler(idleHandler)
-        return true
     }
 }
