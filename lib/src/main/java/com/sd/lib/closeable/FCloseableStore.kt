@@ -16,7 +16,8 @@ object FCloseableStore {
     }
 
     /**
-     * 返回[key]关联的[Holder]对象，外部应该保存[Holder]对象，并通过[Holder.instance]方法实时获取目标对象
+     * 创建[key]关联的[Holder]对象，外部应该强引用持有[Holder]对象，并通过[Holder.instance]方法实时获取目标对象。
+     * 当[key]关联的所有[Holder]对象都没有被强引用的时候，主线程会在空闲的时候，触发[key]绑定目标对象的[AutoCloseable.close]方法。
      */
     @JvmStatic
     fun <T : AutoCloseable> key(clazz: Class<T>, key: String, factory: () -> T): Holder<T> {
