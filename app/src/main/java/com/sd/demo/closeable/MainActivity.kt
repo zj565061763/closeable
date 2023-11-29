@@ -18,6 +18,8 @@ class MainActivity : AppCompatActivity() {
 
             val c2 = FCloseableStore.key("key", AppCloseable::class.java) { AppCloseableImpl() }
             c2.method()
+
+            check(c1 !== c2)
         }
     }
 }
