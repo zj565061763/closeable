@@ -4,34 +4,36 @@ import android.os.Handler
 import android.os.Looper
 import android.os.MessageQueue.IdleHandler
 import android.util.Log
+import java.lang.reflect.InvocationHandler
+import java.lang.reflect.Method
+import java.lang.reflect.Proxy
 import java.util.WeakHashMap
-import kotlin.reflect.KProperty
-
-class FCloseableHolder<T : AutoCloseable> internal constructor(val instance: T)
-
-@Suppress("NOTHING_TO_INLINE")
-inline operator fun <T : AutoCloseable> FCloseableHolder<T>.getValue(thisObj: Any?, property: KProperty<*>): T = instance
 
 object FCloseableStore {
     private val _store: MutableMap<Class<out AutoCloseable>, KeyedHolderFactory<out AutoCloseable>> = hashMapOf()
     private val _idleHandler = SafeIdleHandler { close() > 0 }
 
-    inline fun <reified T : AutoCloseable> key(key: String, noinline factory: () -> T): FCloseableHolder<T> {
+    inline fun <reified T : AutoCloseable> key(key: String, noinline factory: () -> T): T {
         return key(T::class.java, key, factory)
     }
 
     /**
-     * 创建[key]关联的[FCloseableHolder]对象，外部应该强引用持有[FCloseableHolder]对象，并通过[FCloseableHolder.instance]方法实时获取目标对象。
-     * 当[key]关联的所有[FCloseableHolder]对象都没有被强引用的时候，主线程会在空闲的时候，触发[key]绑定目标对象的[AutoCloseable.close]方法。
+     * 根据[key]获取对象，[clazz]必须是接口，因为返回的是[clazz]接口的动态代理对象，代理对象代理[factory]创建的真实对象，
+     * 当代理对象没有被强引用持有的时候，主线程会在空闲的时候调用真实对象的[AutoCloseable.close]方法释放资源。
      */
+    @Suppress("UNCHECKED_CAST")
     @JvmStatic
-    fun <T : AutoCloseable> key(clazz: Class<T>, key: String, factory: () -> T): FCloseableHolder<T> {
+    fun <T : AutoCloseable> key(clazz: Class<T>, key: String, factory: () -> T): T {
+        require(clazz.isInterface) { "clazz must be an interface" }
+        require(clazz != AutoCloseable::class.java) { "clazz must not be:${AutoCloseable::class.java.name}" }
         synchronized(this@FCloseableStore) {
             val keyedHolderFactory = _store[clazz] ?: KeyedHolderFactory<T>().also {
                 _store[clazz] = it
             }
             _idleHandler.registerMain()
-            return (keyedHolderFactory as KeyedHolderFactory<T>).create(key, factory)
+            val holder = (keyedHolderFactory as KeyedHolderFactory<T>).create(key, factory)
+            val proxy = Proxy.newProxyInstance(clazz.classLoader, arrayOf(clazz), CloseableInvocationHandler(holder))
+            return proxy as T
         }
     }
 
@@ -58,12 +60,26 @@ object FCloseableStore {
             return _store.size
         }
     }
+
+    private class CloseableInvocationHandler(
+        private val holder: CloseableHolder<*>
+    ) : InvocationHandler {
+        override fun invoke(proxy: Any?, method: Method?, args: Array<out Any?>?): Any? {
+            return if (args != null) {
+                method?.invoke(holder.instance, *args)
+            } else {
+                method?.invoke(holder.instance)
+            }
+        }
+    }
 }
+
+private class CloseableHolder<T : AutoCloseable>(val instance: T)
 
 private class KeyedHolderFactory<T : AutoCloseable> {
     private val _store: MutableMap<String, HolderFactory<T>> = hashMapOf()
 
-    fun create(key: String, factory: () -> T): FCloseableHolder<T> {
+    fun create(key: String, factory: () -> T): CloseableHolder<T> {
         val holderFactory = _store[key] ?: HolderFactory<T>().also {
             _store[key] = it
         }
@@ -89,19 +105,19 @@ private class KeyedHolderFactory<T : AutoCloseable> {
 
 private class HolderFactory<T : AutoCloseable> {
     private var _instance: T? = null
-    private val _holders = WeakHashMap<FCloseableHolder<T>, String>()
+    private val _holders = WeakHashMap<CloseableHolder<T>, String>()
 
-    fun create(factory: () -> T): FCloseableHolder<T> {
+    fun create(factory: () -> T): CloseableHolder<T> {
         val instance = _instance ?: factory().also {
             _instance = it
         }
-        return FCloseableHolder(instance).also {
+        return CloseableHolder(instance).also {
             _holders[it] = ""
         }
     }
 
     /**
-     * 如果返回不为null，说明当前[_instance]关联的所有[FCloseableHolder]对象已经没有强引用了，
+     * 如果返回不为null，说明当前[_instance]关联的所有[CloseableHolder]对象已经没有强引用了，
      * 可以调用返回对象的[AutoCloseable.close]方法可以关闭[_instance]
      */
     fun closeable(): AutoCloseable? {
