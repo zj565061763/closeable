@@ -9,12 +9,7 @@ import kotlin.reflect.KProperty
 
 object FCloseableStore {
     private val _store: MutableMap<Class<out AutoCloseable>, KeyedHolderFactory<out AutoCloseable>> = hashMapOf()
-    private val _idleHandler = SafeIdleHandler {
-        close().let { size ->
-            Log.d(FCloseableStore::class.java.simpleName, "close size:$size")
-            size > 0
-        }
-    }
+    private val _idleHandler = SafeIdleHandler { close() > 0 }
 
     inline fun <reified T : AutoCloseable> key(key: Any, noinline factory: () -> T): Holder<T> {
         return key(T::class.java, key, factory)
@@ -36,15 +31,17 @@ object FCloseableStore {
             _store.iterator().let { iterator ->
                 while (iterator.hasNext()) {
                     val item = iterator.next()
-                    item.value.close {
+                    item.value.close { key, closeable ->
                         try {
-                            it.close()
+                            closeable.close()
+                            Log.d(FCloseableStore::class.java.simpleName, "close $key $closeable")
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
                     }.let { size ->
                         if (size <= 0) {
                             iterator.remove()
+                            Log.d(FCloseableStore::class.java.simpleName, "remove ${item.key.name}")
                         }
                     }
                 }
@@ -66,13 +63,13 @@ private class KeyedHolderFactory<T : AutoCloseable> {
         return holderFactory.create(factory)
     }
 
-    inline fun close(block: (AutoCloseable) -> Unit): Int {
+    inline fun close(block: (Any, AutoCloseable) -> Unit): Int {
         _store.iterator().let { iterator ->
             while (iterator.hasNext()) {
                 val item = iterator.next()
                 item.value.closeable()?.let {
                     try {
-                        block(it)
+                        block(item.key, it)
                     } finally {
                         iterator.remove()
                     }
