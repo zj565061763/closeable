@@ -34,7 +34,7 @@ object FCloseableStore {
                     item.value.close { key, closeable ->
                         try {
                             closeable.close()
-                            Log.d(FCloseableStore::class.java.simpleName, "close $key $closeable")
+                            Log.d(FCloseableStore::class.java.simpleName, "close ${item.key.name} with key:$key")
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
