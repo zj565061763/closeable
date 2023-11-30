@@ -322,23 +322,28 @@ private class ProxyInvocationHandler(private val instance: FileResource) : Invoc
 ```kotlin
 class MainActivity : AppCompatActivity() {
     // 创建对象
-    private val _instance = FileResourceManager.create()
+    private var _instance: FileResource? = FileResourceManager.create()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         // 触发write方法
-        _instance.write("content")
-
-        // 关闭页面
-        finish()
+        _instance?.write("content")
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        logMsg { "onDestroy" }
+    override fun onStop() {
+        super.onStop()
+        logMsg { "onStop" }
+        // 引用置为null
+        _instance = null
     }
 }
 ```
 
+```
+21:27:14.466 closeable-demo          com.sd.demo.closeable           I  write content com.sd.demo.closeable.FileResourceImpl@7d7a81d
+21:27:21.564 closeable-demo          com.sd.demo.closeable           I  onStop
+21:27:24.434 closeable-demo          com.sd.demo.closeable           I  close com.sd.demo.closeable.FileResourceImpl@7d7a81d
+```
 
+可以看到原始对象也可以被定时器关闭，成功了。
