@@ -143,28 +143,28 @@ object FileResourceManager {
     private val _refQueue = ReferenceQueue<Wrapper<out FileResource>>()
 
     fun <T : FileResource> register(instance: T): Wrapper<T> {
-        // 1.创建包装对象，包住原始对象instance
+        // 创建包装对象，包住原始对象instance
         val wrapper = Wrapper(instance)
 
-        // 2.弱引用保存包装对象
+        // 弱引用保存包装对象
         val ref = WeakKey(wrapper, _refQueue)
 
-        // 3.弱引用映射原始对象
+        // 弱引用映射原始对象
         _holder[ref] = instance
 
-        // 4.返回包装对象给外部使用
+        // 返回包装对象给外部使用
         return wrapper
     }
 
     private val _timer = CloseableTimer(10_000) {
         while (true) {
-            // 1.拿到弱引用
+            // 拿到弱引用
             val ref = _refQueue.poll() ?: break
 
-            // 2.弱引用获取映射的原始对象
-            val instance = _holder[ref]
+            // 弱引用获取映射的原始对象
+            val instance = _holder.remove(ref)
 
-            // 3.关闭原始对象
+            // 关闭原始对象
             instance?.close()
         }
     }
@@ -205,7 +205,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         // 触发write方法
         _wrapper.instance.write("content")
-
+        
         // 关闭页面
         finish()
     }
@@ -235,7 +235,7 @@ class MainActivity : AppCompatActivity() {
 private val _instance = FileResourceManager.register(FileResourceImpl()).instance
 ```
 
-搞了半天，弄了个半成品，我们继续探索。
+我们继续探索。
 
 # 探索二
 
@@ -278,5 +278,67 @@ public interface InvocationHandler {
 到这里思路打通了，我们可以返回一个代理对象给外部使用，对外部来说，拿到的是`FileResource`接口的实现类，就没有`包装`这一个概念。
 
 #### 实现
+
+管理类中新建`create()`方法，替换原先的`register()`方法：
+
+```kotlin
+fun create(): FileResource {
+    // 创建原始对象
+    val instance = FileResourceImpl()
+    val clazz = FileResource::class.java
+
+    // 代理对象方法回调
+    val invocationHandler = ProxyInvocationHandler(instance)
+
+    // 创建代理对象
+    val proxy = Proxy.newProxyInstance(clazz.classLoader, arrayOf(clazz), invocationHandler) as FileResource
+
+    // 弱引用保存代理对象
+    val ref = WeakReference(proxy, _refQueue)
+
+    // 弱引用映射原始对象
+    _holder[ref] = instance
+    return proxy
+}
+
+private class ProxyInvocationHandler(private val instance: FileResource) : InvocationHandler {
+    override fun invoke(proxy: Any, method: Method, args: Array<out Any?>?): Any? {
+        // 代理对象方法触发的时候，转发给原始对象
+        return if (args != null) {
+            method.invoke(instance, *args)
+        } else {
+            method.invoke(instance)
+        }
+    }
+}
+```
+
+逻辑和原先的差不多，内部直接创建了`原始对象FileResourceImpl`，然后把他传给`ProxyInvocationHandler`，当代理对象方法被调用的时候，我们把调用转发给`原始对象`，即代码中的`method.invoke(instance)`。
+
+这样子对外部来说是透明的，就好像直接调用了`原始对象`的方法一样。
+
+#### 测试
+
+```kotlin
+class MainActivity : AppCompatActivity() {
+    // 创建对象
+    private val _instance = FileResourceManager.create()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+        // 触发write方法
+        _instance.write("content")
+
+        // 关闭页面
+        finish()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        logMsg { "onDestroy" }
+    }
+}
+```
 
 
