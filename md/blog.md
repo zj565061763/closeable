@@ -10,7 +10,7 @@
 2. 怎么知道对象没有被引用了
 3. 调用对象的什么方法释放资源
 
-最直觉的想法是，开一个定时器，定时检查注册的对象是否可以被释放。
+最直接的想法是，开一个定时器，定时检查注册的对象是否可以被释放。
 
 那我们就尝试这样子实现，来看看可以不可以，哈哈，当然是不可以，看看我们会卡在哪一步，程序员还是看代码比较直观。
 
@@ -132,7 +132,7 @@ interface FileResource : AutoCloseable {
 class Wrapper<T : FileResource>(val instance: T)
 ```
 
-修改管理类：
+管理类：
 
 ```kotlin
 // 起一个别名方便阅读
@@ -198,31 +198,30 @@ class FileResourceImpl : FileResource {
 ```kotlin
 class MainActivity : AppCompatActivity() {
     // 包装对象
-    private val _wrapper = FileResourceManager.register(FileResourceImpl())
+    private var _wrapper: Wrapper<FileResourceImpl>? = FileResourceManager.register(FileResourceImpl())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         // 触发write方法
-        _wrapper.instance.write("content")
-        
-        // 关闭页面
-        finish()
+        _wrapper?.instance?.write("content")
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        logMsg { "onDestroy" }
+    override fun onStop() {
+        super.onStop()
+        // 引用置为null
+        _wrapper = null
+        logMsg { "onStop" }
     }
 }
 ```
 
-在`onCreate()`方法里面调用包装对象的方法，然后就关闭页面，我们运行demo之后页面被关闭，此时我们可以打开`Profiler`手动触发垃圾回收，等待定时器触发，看看`close()`是否会被调用，来看看日志：
+在`onCreate()`里面调用`write()`方法，在`onStop()`里面将引用置为`null`，在`Profiler`中手动触发垃圾回收，等待定时器触发，看看`close()`是否会被调用，来看看日志：
 
 ```
-19:25:17.323 closeable-demo          com.sd.demo.closeable           I  write content com.sd.demo.closeable.FileResourceImpl@25d4406
-19:25:18.405 closeable-demo          com.sd.demo.closeable           I  onDestroy
-19:25:38.485 closeable-demo          com.sd.demo.closeable           I  close com.sd.demo.closeable.FileResourceImpl@25d4406
+21:35:53.787 closeable-demo          com.sd.demo.closeable           I  write content com.sd.demo.closeable.FileResourceImpl@25d4406
+21:35:57.530 closeable-demo          com.sd.demo.closeable           I  onStop
+21:36:03.753 closeable-demo          com.sd.demo.closeable           I  close com.sd.demo.closeable.FileResourceImpl@25d4406
 ```
 
 可以看到`close()`被调用了，因为页面关闭触发垃圾回收之后`Activity`对象被回收了，它持有的`包装对象`，即`_wrapper`也被回收了。
@@ -259,7 +258,7 @@ val wrapper = Proxy.newProxyInstance(clazz.classLoader, arrayOf(clazz), object :
     }
 }) as FileResource
 
-logMsg { 
+logMsg {
     wrapper.write("content")
 }
 ```
@@ -333,9 +332,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        logMsg { "onStop" }
         // 引用置为null
         _instance = null
+        logMsg { "onStop" }
     }
 }
 ```
