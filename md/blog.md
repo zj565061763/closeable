@@ -151,7 +151,7 @@ object FileResourceManager {
 
         // 3.弱引用映射原始对象
         _holder[ref] = instance
-        
+
         // 4.返回包装对象给外部使用
         return wrapper
     }
@@ -205,7 +205,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         // 触发write方法
         _wrapper.instance.write("content")
-        
+
         // 关闭页面
         finish()
     }
@@ -247,7 +247,7 @@ private val _instance = FileResourceManager.register(FileResourceImpl()).instanc
 public static Object newProxyInstance(ClassLoader loader, Class<?>[] interfaces, InvocationHandler h)
 ```
 
-解释是苍白的，我们直接来使用这个api试试：
+我们直接来使用这个api：
 
 ```kotlin
 val clazz = FileResource::class.java
@@ -264,7 +264,7 @@ logMsg {
 }
 ```
 
-看到这里不熟悉动态代理的同学可能会有疑问，传一个接口的`Class`就能创建出这个接口的实现类对象？没错确实是这样的，我们称它为代理对象。
+不了解`java`动态代理的同学可能会有疑问，传一个接口的`Class`就能创建出这个接口的实现类对象？没错确实是这样的，我们称它为代理对象，对应上文中的`包装对象`。
 
 那调用这个代理对象的方法会发生什么？这里是重点，也就是上面api方法中的第三个参数`InvocationHandler`，它是一个接口。当代理对象的方法被调用的时候，`InvocationHandler.invoke()`方法会被回调，具体看一下这个接口：
 
