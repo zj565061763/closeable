@@ -1,6 +1,6 @@
 # 前言
 
-`java`对象可以重写`finalize()`方法来监听当前对象没有被引用可以被回收。一般是在这个方法里面做一些释放资源的逻辑。然而它早就被废弃了，因为用它要特别小心，容易出问题，不是本文讨论的重点，有兴趣的同学可以去查一下资料，建议新写的业务不要依赖这个方法，接下来我们探索一下如何替代它。
+`java`中可以重写`finalize()`方法来监听对象即将被回收。一般是在这个方法里面做一些释放资源的操作。因为用它要特别小心，容易出问题，所以它被废弃了。具体的细节，有兴趣的同学可以去查一下资料，建议新写的业务不要依赖这个方法，接下来我们探索一下有没有好的方法替代它。
 
 # 分析
 
@@ -10,15 +10,15 @@
 2. 怎么知道对象没有被引用了
 3. 调用对象的什么方法释放资源
 
-最直接的想法是，开一个定时器，定时检查注册的对象是否可以被释放。
+最直接的想法是，开一个定时器，定时检查对象是否可以被释放。
 
-那我们就尝试这样子实现，来看看可以不可以，哈哈，当然是不可以，看看我们会卡在哪一步，程序员还是看代码比较直观。
+我们写代码尝试一下，看看可不可以，哈哈，当然是不可以，看看我们会卡在哪一步，程序员还是看代码比较直观。
 
-#### 尝试
+# 尝试
 
-为了可读性，演示代码不考虑严格的逻辑，读者不要介意。
+为了可读性，演示代码不考虑严格的逻辑，请读者不要介意。
 
-第3个问题很好解决，我们用统一的接口就可以了，刚好有现成`java.lang.AutoCloseable`：
+第3个问题很好解决，我们用统一的接口就可以了，刚好有现成的`java.lang.AutoCloseable`：
 
 ```java
 public interface AutoCloseable {
@@ -26,66 +26,54 @@ public interface AutoCloseable {
 }
 ```
 
-来吧，定时器和管理类搞起来
-
-定时器：
+模拟一个文件资源接口及其实现类：
 
 ```kotlin
-private class CloseableTimer(
-    // 定时器间隔，毫秒
-    private val interval: Long,
-    // 定时器运行的block
-    private val block: () -> Unit,
-) {
-    private val _handler = Handler(Looper.getMainLooper())
+interface FileResource : AutoCloseable {
+    fun write(content: String)
+}
 
-    private val _loopRunnable = object : Runnable {
-        override fun run() {
-            try {
-                block()
-            } finally {
-                _handler.postDelayed(this, interval)
-            }
-        }
+class FileResourceImpl : FileResource {
+    override fun write(content: String) {
+        logMsg { "write $content $this" }
     }
 
-    init {
-        _handler.postDelayed(_loopRunnable, interval)
+    override fun close() {
+        logMsg { "close $this" }
     }
 }
 ```
-
-定时器的逻辑比较简单，根据传入的时间间隔`interval`，不断的回调`block`。
 
 管理类：
 
 ```kotlin
-object CloseableManager {
+object FileResourceManager {
     /** 弱引用保存 */
-    private val _holder = WeakHashMap<AutoCloseable, String>()
+    private val _holder = WeakHashMap<FileResource, String>()
 
     /** 注册对象 */
-    fun register(instance: AutoCloseable) {
+    fun register(instance: FileResource) {
         _holder[instance] = ""
     }
 
-    // 定时器
-    private val _timer = CloseableTimer(10_000) {
-        _holder.iterator().run {
-            while (hasNext()) {
-                val item = next()
-                val closeable = item.key
-                // 写不下去了，能被遍历到的都是还有被引用的对象
-            }
+    private fun check() {
+        _holder.forEach {
+            val closeable = it.key
+            // 写不下去了，能被遍历到的都是还有被引用的对象
         }
+    }
+
+    private val _timer = CloseableTimer {
+        // 定时器，定时触发check()方法
+        check()
     }
 }
 ```
 
-内部采用`java.util.WeakHashMap`来保存`AutoCloseable`，当你用`key`来保存一个`AutoCloseable`对象，之后如果遍历的时候找不到这个对象了，那说明这个对象已经没有引用指向它了，这个对象就达到我们能调用`close()`方法的条件。
+采用`java.util.WeakHashMap`的`key`来保存`FileResource`对象，后续如果遍历的时候找不到这个对象了，那说明这个对象已经没有引用指向它了，这个对象就达到我们能调用`close()`方法的条件。
 
 这里就矛盾了，既然没有引用指向这个对象了，又怎么调用到对象的`close()`方法呢？<br>
-代码写不下去了，我们开始思考新的方法。
+代码写不下去了，我们开始探索的方法。
 
 # 探索一
 
@@ -93,7 +81,7 @@ object CloseableManager {
 
 怎么知道外部已经没有引用指向这个对象了？
 
-我们可以做一层包装，在外部注册`原始对象`的时候，返回一个`包装对象`给外部使用，此时内部用弱引用保存`包装对象`。
+我们可以做一层包装，注册`原始对象`的时候，返回一个`包装对象`给外部使用，`包装对象`内部持有`原始对象`，然后内部用弱引用保存`包装对象`。
 
 当外部没有引用指向`包装对象`的时候，就说明我们可以调用`原始对象`的`close()`方法释放资源了，
 但此时我们用弱引用保存`包装对象`，怎么找到它映射到`原始对象`呢？
