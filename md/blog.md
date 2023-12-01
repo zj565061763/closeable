@@ -297,16 +297,12 @@ class SingletonFactory<T : AutoCloseable>(
 
     // 创建实例
     fun create(factory: () -> T): T {
-        // 如果对象已存在，直接返回
-        _instance?.let { return it }
-
-        // 1.创建原始对象
-        val instance = factory().also {
-            // 保存原始对象
+        // 原始对象，如果为null，就调用factory创建
+        val instance = _instance ?: factory().also {
             _instance = it
         }
 
-        // 2.创建代理对象
+        // 创建代理对象
         val proxy = Proxy.newProxyInstance(clazz.classLoader, arrayOf(clazz)) { _, method, args ->
             if (args != null) {
                 method.invoke(instance, *args)
@@ -315,7 +311,7 @@ class SingletonFactory<T : AutoCloseable>(
             }
         } as T
 
-        // 3.弱引用保存代理对象
+        // 弱引用保存代理对象
         _proxyHolder[proxy] = ""
         return proxy
     }
