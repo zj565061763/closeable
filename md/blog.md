@@ -420,3 +420,41 @@ class MainActivity : AppCompatActivity() {
 ```
 
 我们调用工厂`create()`创建了3次，第1次和第2次由于`path`一样，所以指向的是同一个对象，第3次`path`变了，所以是一个新的对象，即一共创建了2个对象，最终`FileResourceFactory.close()`执行的时候也确实`close()`了2个对象。
+
+# 自动关闭
+
+这一节我们单独来探索一下怎么实现自动关闭，即上文中的`FileResourceFactory.close()`自动触发。
+
+直接能想到的就有3种方案：
+
+* 定时器检查
+* 监听App前后台切换，在切换到后台的时候关闭
+* `IdleHandler`
+
+这里选择使用`IdleHandler`，因为它比较简单不需要`Context`，看一下代码：
+
+```kotlin
+private class SafeIdleHandler(private val block: () -> Boolean) {
+    private var _idleHandler: IdleHandler? = null
+
+    fun register() {
+        val mainLooper = Looper.getMainLooper() ?: return
+        if (mainLooper === Looper.myLooper()) {
+            addIdleHandler()
+        } else {
+            Handler(mainLooper).post { addIdleHandler() }
+        }
+    }
+
+    private fun addIdleHandler() {
+        Looper.myLooper() ?: return
+        _idleHandler?.let { return }
+        IdleHandler {
+            block().also { if (!it) _idleHandler = null }
+        }.also {
+            _idleHandler = it
+            Looper.myQueue().addIdleHandler(it)
+        }
+    }
+}
+```
