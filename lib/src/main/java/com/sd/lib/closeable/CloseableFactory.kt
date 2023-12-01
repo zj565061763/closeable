@@ -66,9 +66,10 @@ private class SingletonFactory<T : AutoCloseable>(
 
     @Suppress("UNCHECKED_CAST")
     fun create(factory: () -> T): T {
-        _instance?.let { return it }
+        val instance = _instance ?: factory().also {
+            _instance = it
+        }
 
-        val instance = factory().also { _instance = it }
         val proxy = Proxy.newProxyInstance(clazz.classLoader, arrayOf(clazz)) { _, method, args ->
             if (args != null) {
                 method.invoke(instance, *args)
