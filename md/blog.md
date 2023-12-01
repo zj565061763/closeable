@@ -415,9 +415,9 @@ class MainActivity : AppCompatActivity() {
 15:09:54.848 closeable-demo          com.sd.demo.closeable           I  close com.sd.demo.closeable.FileResourceImpl@c237ff
 ```
 
-一共有3个属性，`_proxy1`，`_proxy2`，`_proxy3`，实际上第1个和第2个是同一个对象，因为他们的`path`一样。
+一共有3个代理对象，`_proxy1`，`_proxy2`，`_proxy3`，实际上第1个和第2个他们代理的是同一个原始对象，因为他们的`path`一样。
 
-从日志也可以看出一共是2个对象，最终`FileResourceFactory.close()`执行的时候也确实`close()`了2个对象。
+从日志也可以看出一共是2个原始对象，最终`FileResourceFactory.close()`执行的时候也确实`close()`了2个原始对象。
 
 # 自动关闭
 
