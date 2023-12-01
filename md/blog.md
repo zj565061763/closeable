@@ -421,7 +421,7 @@ class MainActivity : AppCompatActivity() {
 
 # 自动关闭
 
-这一节我们单独来探索一下怎么实现自动关闭，即自动触发`FileResourceFactory.close()`。
+这一节我们来实现自动关闭，即自动触发`FileResourceFactory.close()`。
 
 可以用`IdleHandler`实现，关于`IdleHandler`，有专门讲它的文章，这里就不赘述了，简单来说就是当你在主线程注册一个`IdleHandler`后，它会在主线程空闲的时候被执行。
 
@@ -452,6 +452,11 @@ private class SafeIdleHandler(private val block: () -> Boolean) {
     }
 }
 ```
+
+这里说明一下构造方法中`block`的返回值`Boolean`代表什么意思：
+
+`true`表示`IdleHandler`监听对象还要继续监听后续的线程空闲事件<br>
+`false`表示不再继续监听了，这个`IdleHandler`就会被移除
 
 我们在多实例工厂`CloseableFactory`中使用一下它，看一下它的完整代码：
 
@@ -533,7 +538,7 @@ class MainActivity : AppCompatActivity() {
 20:21:01.313 closeable-demo          com.sd.demo.closeable           I  close com.sd.demo.closeable.FileResourceImpl@bc5d31e
 ```
 
-和上面的测试代码差不多，去掉了`onStart()`方法，因为我们已经不需要手动`close()`了，可以看到已经可以自动`close()`了。
+和上面的测试代码差不多，去掉了手动`close()`的代码，可以看到已经可以自动`close()`了。
 
 # 结束
 
