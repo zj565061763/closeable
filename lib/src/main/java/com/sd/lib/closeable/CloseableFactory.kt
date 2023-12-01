@@ -6,6 +6,10 @@ import android.os.MessageQueue.IdleHandler
 import java.lang.reflect.Proxy
 import java.util.WeakHashMap
 
+/**
+ * 此类不支持多线程并发，如果有多线程的应用场景，外部可以根据需求加锁，
+ * 如果[idleHandler]设置为true，则[close]方法会在主线程空闲的时候触发
+ */
 class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
     private val clazz: Class<T>,
     private val idleHandler: Boolean = true,
@@ -13,11 +17,9 @@ class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
     private val _holder: MutableMap<String, SingletonFactory<T>> = hashMapOf()
 
     /**
-     * 根据[key]获取[clazz]接口的代理对象，代理对象代理[factory]创建的原始对象，
-     * 当代理对象没有被引用时，主线程会在空闲的时候调用原始对象的[AutoCloseable.close]
+     * 根据[key]获取[clazz]接口的代理对象，代理对象代理[factory]创建的原始对象
      */
     fun create(key: String, factory: () -> T): T {
-        checkMainThread()
         val singletonFactory = _holder[key] ?: SingletonFactory(clazz).also {
             _holder[key] = it
         }
@@ -33,10 +35,9 @@ class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
     }
 
     /**
-     * 关闭[AutoCloseable]
+     * 关闭未使用的[AutoCloseable]
      */
     fun close() {
-        checkMainThread()
         _holder.iterator().run {
             while (hasNext()) {
                 val item = next()
@@ -92,11 +93,6 @@ private class SingletonFactory<T : AutoCloseable>(
             _instance = null
         }
     }
-}
-
-private fun checkMainThread() {
-    val mainLooper = Looper.getMainLooper() ?: return
-    if (mainLooper !== Looper.myLooper()) error("Not main thread.")
 }
 
 private class SafeIdleHandler(private val block: () -> Boolean) {
