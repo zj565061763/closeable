@@ -130,27 +130,5 @@ private class HolderFactory<T : AutoCloseable> {
     }
 }
 
-private class SafeIdleHandler(private val block: () -> Boolean) {
-    private var _idleHandler: IdleHandler? = null
 
-    fun register() {
-        val mainLooper = Looper.getMainLooper() ?: return
-        if (mainLooper === Looper.myLooper()) {
-            addIdleHandler()
-        } else {
-            Handler(mainLooper).post { addIdleHandler() }
-        }
-    }
-
-    private fun addIdleHandler() {
-        Looper.myLooper() ?: return
-        _idleHandler?.let { return }
-        IdleHandler {
-            block().also { if (!it) _idleHandler = null }
-        }.also {
-            _idleHandler = it
-            Looper.myQueue().addIdleHandler(it)
-        }
-    }
-}
 
