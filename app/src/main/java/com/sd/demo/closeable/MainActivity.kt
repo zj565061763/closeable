@@ -19,13 +19,6 @@ class MainActivity : AppCompatActivity() {
         _proxy3?.write("content")
     }
 
-    override fun onStart() {
-        super.onStart()
-        logMsg { "onStart" }
-        // 检查
-        FileResourceFactory.close()
-    }
-
     override fun onStop() {
         super.onStop()
         logMsg { "onStop" }

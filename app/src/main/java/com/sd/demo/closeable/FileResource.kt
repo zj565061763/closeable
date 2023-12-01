@@ -22,8 +22,4 @@ object FileResourceFactory {
     fun create(path: String): FileResource {
         return _factory.create(path) { FileResourceImpl(path) }
     }
-
-    fun close() {
-        _factory.close()
-    }
 }
