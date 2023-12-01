@@ -28,10 +28,10 @@ object FileResourceFactory {
 
 可以在外部从工厂获取实例的时候返回一个代理对象给外部使用，具体步骤如下：
 
-1. 创建`原始对象`，`强`引用保存
-2. 创建`代理对象`，`弱`引用保存
-3. 弱引用映射到`原始对象`
-4. 返回`代理对象`给外部使用
+1. 创建原始对象，`强`引用保存
+2. 创建代理对象，`弱`引用保存
+3. 弱引用映射到原始对象
+4. 返回代理对象给外部使用
 
 说的比较抽象了，我们继续看下面的实现吧。
 
@@ -97,7 +97,7 @@ object FileResourceFactory {
 ```kotlin
 fun close() {
     while (true) {
-        // 1.弱引用
+        // 1.从_refQueue中取弱引用
         val weak = _refQueue.poll() ?: break
 
         // 2.弱引用获取映射的原始对象
@@ -175,6 +175,7 @@ fun create(path: String): FileResource {
     } as FileResource
 
     //...
+    return proxy
 }
 ```
 
@@ -184,7 +185,9 @@ fun create(path: String): FileResource {
 
 在实际的场景中，一般有`唯一ID`的资源要考虑并发问题，`create()`的时候，如果他们传的参数`path`是一样的，应该返回同一个对象，这样子我们只要考虑对象内部的线程同步逻辑就可以了。
 
-资源的`唯一ID`可以理解为`key`，每个`key`对应一个实例。先不考虑多个`key`的场景，只考虑单个实例的场景，单实例的工厂类写好后，我们把`key`和这个类做一个映射就可以了。
+资源的`唯一ID`可以理解为`key`，每个`key`对应一个实例。
+
+先不考虑多个`key`的场景，只考虑单个实例的场景，单实例的工厂类写好后，我们把`key`和这个类做一个映射就可以了。
 
 看一下单实例工厂类的代码：
 
@@ -195,12 +198,8 @@ class SingletonFileResourceFactory {
 
     // 创建实例
     fun create(factory: () -> FileResource): FileResource {
-        // 如果对象已存在，直接返回
-        _instance?.let { return it }
-
-        // 创建原始对象
-        val instance = factory().also {
-            // 保存创建的原始对象
+        // 原始对象，如果为null，就调用factory创建
+        val instance = _instance ?: factory().also {
             _instance = it
         }
 
@@ -235,7 +234,7 @@ class SingletonFileResourceFactory {
 }
 ```
 
-单实例工厂的逻辑比较简单，内部只保存一个实例，如果`create()`的时候实例不为`null`就返回，为`null`就用`factory`参数创建一个实例保存起来。
+单实例工厂的逻辑比较简单，内部只保存一个实例，如果为`null`就调用`factory`参数创建一个实例保存起来。
 
 代理对象则换成了`WeakHashMap`保存，当`_proxyHolder`为空的时候说明外部的代理对象都已经用完了，没有引用了，此时可以关闭内部保存的原始对象，即`close()`方法的逻辑。
 
@@ -254,6 +253,7 @@ object FileResourceFactory {
         return singletonFactory.create { FileResourceImpl(path) }
     }
 
+    // 关闭空闲的对象
     fun close() {
         _holder.iterator().run {
             while (hasNext()) {
