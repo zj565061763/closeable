@@ -37,7 +37,7 @@ object FileResourceFactory {
 
 # 实现
 
-先写`FileResource`的实现类，通常访问某个资源会有一个`唯一ID`，例如文件资源的路径，代码如下：
+先写`FileResource`的实现类，通常访问某个资源会有一个`唯一标识`，例如文件资源的路径，代码如下：
 
 ```kotlin
 class FileResourceImpl(private val path: String) : FileResource {
@@ -183,9 +183,9 @@ fun create(path: String): FileResource {
 
 #### 优化二
 
-在实际的场景中，一般有`唯一ID`的资源要考虑并发问题，`create()`的时候，如果他们传的参数`path`是一样的，应该返回同一个对象，这样子我们只要考虑对象内部的线程同步逻辑就可以了。
+在实际的场景中，一般有`唯一标识`的资源要考虑并发问题，`create()`的时候，如果他们传的参数`path`是一样的，应该返回同一个对象，这样子我们只要考虑对象内部的线程同步逻辑就可以了。
 
-资源的`唯一ID`可以理解为`key`，每个`key`对应一个实例。
+资源的`唯一标识`可以理解为`key`，每个`key`对应一个实例。
 
 先不考虑多个`key`的场景，只考虑单个实例的场景，单实例的工厂类写好后，我们把`key`和这个类做一个映射就可以了。
 
@@ -539,6 +539,8 @@ class MainActivity : AppCompatActivity() {
 ```
 
 和上面的测试代码差不多，去掉了手动`close()`的代码，可以看到已经可以自动`close()`了。
+
+如果读者有自己的资源接口，想实现自动关闭的功能，只要在你的工厂类中使用`CloseableFactory`就可以了，当然了，要保证它是单例的，因为这样子才可以实现同一个`key`对应的是同一个原始对象。
 
 # 结束
 
