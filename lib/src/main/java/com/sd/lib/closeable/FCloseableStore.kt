@@ -142,7 +142,7 @@ private class SafeIdleHandler(private val block: () -> Boolean) {
         }
     }
 
-    fun register(): Boolean {
+    private fun register(): Boolean {
         Looper.myLooper() ?: return false
         synchronized(this@SafeIdleHandler) {
             _idleHandler?.let { return true }
