@@ -43,8 +43,6 @@ private class SingletonFactory<T : AutoCloseable>(
         require(clazz != AutoCloseable::class.java) { "clazz must not be:${AutoCloseable::class.java.name}" }
     }
 
-    fun isEmpty(): Boolean = _proxyHolder.isEmpty()
-
     fun create(factory: () -> T): T {
         _instance?.let { return it }
 
@@ -60,6 +58,10 @@ private class SingletonFactory<T : AutoCloseable>(
         return proxy.also {
             _proxyHolder[proxy] = ""
         }
+    }
+
+    fun isEmpty(): Boolean {
+        return _proxyHolder.isEmpty()
     }
 
     fun close() {
