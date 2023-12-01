@@ -3,24 +3,36 @@ package com.sd.demo.closeable
 import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
-import com.sd.demo.closeable.databinding.ActivityMainBinding
-import com.sd.lib.closeable.FCloseableStore
 
 class MainActivity : AppCompatActivity() {
-    private val _binding by lazy { ActivityMainBinding.inflate(layoutInflater) }
+    // 代理对象
+    private var _proxy1: FileResource? = FileResourceFactory.create("/sdcard/app.log")
+    private var _proxy2: FileResource? = FileResourceFactory.create("/sdcard/app.log")
+    private var _proxy3: FileResource? = FileResourceFactory.create("/sdcard/app.log.log")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(_binding.root)
-        _binding.btn.setOnClickListener {
-            val c1 = FCloseableStore.key("key", AppCloseable::class.java) { AppCloseableImpl() }
-            logMsg { "c1 result:${c1.method(1)}" }
+        setContentView(R.layout.activity_main)
+        // 触发write方法
+        _proxy1?.write("content")
+        _proxy2?.write("content")
+        _proxy3?.write("content")
+    }
 
-            val c2 = FCloseableStore.key("key", AppCloseable::class.java) { AppCloseableImpl() }
-            logMsg { "c2 result:${c1.method(2)}" }
+    override fun onStart() {
+        super.onStart()
+        logMsg { "onStart" }
+        // 检查
+        FileResourceFactory.close()
+    }
 
-            check(c1 !== c2)
-        }
+    override fun onStop() {
+        super.onStop()
+        logMsg { "onStop" }
+        // 引用置为null
+        _proxy1 = null
+        _proxy2 = null
+        _proxy3 = null
     }
 }
 

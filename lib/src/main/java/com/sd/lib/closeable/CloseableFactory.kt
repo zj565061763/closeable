@@ -6,17 +6,24 @@ import android.os.MessageQueue.IdleHandler
 import java.lang.reflect.Proxy
 import java.util.WeakHashMap
 
-class FKeyedFactory<T : AutoCloseable>(
-    private val clazz: Class<T>
+class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
+    private val clazz: Class<T>,
+    private val idleHandler: Boolean = true,
 ) {
     private val _holder: MutableMap<String, SingletonFactory<T>> = hashMapOf()
 
+    /**
+     * 根据[key]获取[clazz]接口的代理对象，代理对象代理[factory]创建的原始对象，
+     * 当代理对象没有被引用时，主线程会在空闲的时候调用原始对象的[AutoCloseable.close]
+     */
     fun create(key: String, factory: () -> T): T {
         checkMainThread()
         val singletonFactory = _holder[key] ?: SingletonFactory(clazz).also {
             _holder[key] = it
         }
-        _idleHandler.register()
+        if (idleHandler) {
+            _idleHandler.register()
+        }
         return singletonFactory.create(factory)
     }
 
@@ -25,14 +32,17 @@ class FKeyedFactory<T : AutoCloseable>(
         _holder.isNotEmpty()
     }
 
-    private fun close() {
+    /**
+     * 关闭[AutoCloseable]
+     */
+    fun close() {
         checkMainThread()
         _holder.iterator().run {
             while (hasNext()) {
                 val item = next()
-                item.value.closeable()?.let { closeable ->
+                item.value.closeable()?.let {
                     try {
-                        closeable.close()
+                        it.close()
                     } finally {
                         remove()
                     }
@@ -53,6 +63,7 @@ private class SingletonFactory<T : AutoCloseable>(
         require(clazz != AutoCloseable::class.java) { "clazz must not be:${AutoCloseable::class.java.name}" }
     }
 
+    @Suppress("UNCHECKED_CAST")
     fun create(factory: () -> T): T {
         _instance?.let { return it }
 
@@ -88,7 +99,7 @@ private fun checkMainThread() {
     if (mainLooper !== Looper.myLooper()) error("Not main thread.")
 }
 
-internal class SafeIdleHandler(private val block: () -> Boolean) {
+private class SafeIdleHandler(private val block: () -> Boolean) {
     private var _idleHandler: IdleHandler? = null
 
     fun register() {
@@ -104,7 +115,9 @@ internal class SafeIdleHandler(private val block: () -> Boolean) {
         Looper.myLooper() ?: return
         _idleHandler?.let { return }
         IdleHandler {
-            block().also { if (!it) _idleHandler = null }
+            block().also {
+                if (!it) _idleHandler = null
+            }
         }.also {
             _idleHandler = it
             Looper.myQueue().addIdleHandler(it)
