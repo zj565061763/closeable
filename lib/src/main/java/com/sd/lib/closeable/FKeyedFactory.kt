@@ -62,12 +62,10 @@ private class SingletonFactory<T : AutoCloseable>(
         }
     }
 
-    fun close(): Boolean {
-        return isEmpty().also {
-            if (it) {
-                _instance?.close()
-                _instance = null
-            }
+    fun close() {
+        if (isEmpty()) {
+            _instance?.close()
+            _instance = null
         }
     }
 }
