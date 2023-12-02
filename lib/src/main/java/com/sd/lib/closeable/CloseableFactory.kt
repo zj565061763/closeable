@@ -3,6 +3,8 @@ package com.sd.lib.closeable
 import android.os.Handler
 import android.os.Looper
 import android.os.MessageQueue.IdleHandler
+import java.lang.reflect.InvocationHandler
+import java.lang.reflect.Method
 import java.lang.reflect.Proxy
 import java.util.WeakHashMap
 
@@ -57,7 +59,7 @@ open class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
 
 private class SingletonFactory<T : AutoCloseable>(
     private val clazz: Class<T>
-) : AutoCloseable {
+) : AutoCloseable, InvocationHandler {
     private var _instance: T? = null
     private val _holder = WeakHashMap<T, String>()
 
@@ -68,20 +70,21 @@ private class SingletonFactory<T : AutoCloseable>(
 
     @Suppress("UNCHECKED_CAST")
     fun create(factory: () -> T): T {
-        val instance = _instance ?: factory().also {
+        _instance ?: factory().also {
             _instance = it
         }
+        return (Proxy.newProxyInstance(clazz.classLoader, arrayOf(clazz), this) as T).also {
+            _holder[it] = ""
+        }
+    }
 
-        val proxy = Proxy.newProxyInstance(clazz.classLoader, arrayOf(clazz)) { _, method, args ->
-            if (args != null) {
-                method.invoke(instance, *args)
-            } else {
-                method.invoke(instance)
-            }
-        } as T
-
-        _holder[proxy] = ""
-        return proxy
+    override fun invoke(proxy: Any, method: Method, args: Array<out Any?>?): Any? {
+        val instance = checkNotNull(_instance)
+        return if (args != null) {
+            method.invoke(instance, *args)
+        } else {
+            method.invoke(instance)
+        }
     }
 
     fun closeable(): AutoCloseable? {
