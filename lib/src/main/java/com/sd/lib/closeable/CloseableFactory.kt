@@ -10,7 +10,7 @@ import java.util.WeakHashMap
  * 此类不支持多线程并发，如果有多线程的应用场景，外部可以根据需求加锁，
  * 如果[autoClose]设置为true，则[close]方法会在主线程空闲的时候触发
  */
-class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
+open class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
     private val clazz: Class<T>,
     private val autoClose: Boolean = true,
 ) {
@@ -34,6 +34,7 @@ class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
      * 关闭未使用的[AutoCloseable]
      */
     fun close() {
+        val oldSize = _holder.size
         _holder.iterator().run {
             while (hasNext()) {
                 val item = next()
@@ -46,7 +47,12 @@ class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
                 }
             }
         }
+        if (oldSize > 0 && _holder.isEmpty()) {
+            onEmpty()
+        }
     }
+
+    protected open fun onEmpty() {}
 }
 
 private class SingletonFactory<T : AutoCloseable>(
