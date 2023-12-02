@@ -8,11 +8,11 @@ import java.util.WeakHashMap
 
 /**
  * 此类不支持多线程并发，如果有多线程的应用场景，外部可以根据需求加锁，
- * 如果[idleHandler]设置为true，则[close]方法会在主线程空闲的时候触发
+ * 如果[autoClose]设置为true，则[close]方法会在主线程空闲的时候触发
  */
 class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
     private val clazz: Class<T>,
-    private val idleHandler: Boolean = true,
+    private val autoClose: Boolean = true,
 ) {
     private val _holder: MutableMap<String, SingletonFactory<T>> = hashMapOf()
 
@@ -23,7 +23,7 @@ class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
         val singletonFactory = _holder[key] ?: SingletonFactory(clazz).also {
             _holder[key] = it
         }
-        if (idleHandler) {
+        if (autoClose) {
             _idleHandler.register()
         }
         return singletonFactory.create(factory)
