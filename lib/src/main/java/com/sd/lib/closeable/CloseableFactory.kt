@@ -20,12 +20,8 @@ class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
      * 根据[key]获取[clazz]接口的代理对象，代理对象代理[factory]创建的原始对象
      */
     fun create(key: String, factory: () -> T): T {
-        val singletonFactory = _holder[key] ?: SingletonFactory(clazz).also {
-            _holder[key] = it
-        }
-        if (autoClose) {
-            _idleHandler.register()
-        }
+        val singletonFactory = _holder.getOrPut(key) { SingletonFactory(clazz) }
+        if (autoClose) _idleHandler.register()
         return singletonFactory.create(factory)
     }
 
@@ -78,9 +74,8 @@ private class SingletonFactory<T : AutoCloseable>(
             }
         } as T
 
-        return proxy.also {
-            _holder[proxy] = ""
-        }
+        _holder[proxy] = ""
+        return proxy
     }
 
     fun closeable(): AutoCloseable? {
