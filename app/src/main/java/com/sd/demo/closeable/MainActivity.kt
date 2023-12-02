@@ -6,9 +6,9 @@ import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
     // 代理对象
-    private var _proxy1: FileResource? = FileResourceFactory.create("/sdcard/app.log")
-    private var _proxy2: FileResource? = FileResourceFactory.create("/sdcard/app.log")
-    private var _proxy3: FileResource? = FileResourceFactory.create("/sdcard/app.log.log")
+    private var _proxy1: FileResource? = FileResource.create("/sdcard/app.log")
+    private var _proxy2: FileResource? = FileResource.create("/sdcard/app.log")
+    private var _proxy3: FileResource? = FileResource.create("/sdcard/app.log.log")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
