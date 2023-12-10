@@ -3,10 +3,10 @@ package com.sd.lib.closeable
 import android.os.Handler
 import android.os.Looper
 import android.os.MessageQueue.IdleHandler
+import java.lang.ref.WeakReference
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
-import java.util.WeakHashMap
 
 /**
  * 如果[lock]不为null，会在创建和关闭对象的时候加锁，且主线程会在空闲的时候关闭未使用的[AutoCloseable]，如果关闭时发生了异常，会回调[onCloseError]。
@@ -95,7 +95,7 @@ private class SingletonFactory<T : AutoCloseable>(
     private val clazz: Class<T>,
 ) : AutoCloseable, InvocationHandler {
     private var _instance: T? = null
-    private val _holder = WeakHashMap<T, String>()
+    private var _proxyRef: WeakReference<T>? = null
 
     init {
         require(clazz.isInterface) { "clazz must be an interface" }
@@ -107,8 +107,11 @@ private class SingletonFactory<T : AutoCloseable>(
         _instance ?: factory().also {
             _instance = it
         }
-        return (Proxy.newProxyInstance(clazz.classLoader, arrayOf(clazz), this) as T).also {
-            _holder[it] = ""
+
+        return _proxyRef?.get() ?: kotlin.run {
+            (Proxy.newProxyInstance(clazz.classLoader, arrayOf(clazz), this) as T).also {
+                _proxyRef = WeakReference(it)
+            }
         }
     }
 
@@ -122,7 +125,7 @@ private class SingletonFactory<T : AutoCloseable>(
     }
 
     fun closeable(): AutoCloseable? {
-        return if (_holder.isEmpty()) this else null
+        return if (_proxyRef?.get() == null) this else null
     }
 
     override fun close() {
