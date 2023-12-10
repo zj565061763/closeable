@@ -9,12 +9,12 @@ import java.lang.reflect.Proxy
 import java.util.WeakHashMap
 
 /**
- * 此类不支持多线程并发，如果有多线程的应用场景，外部可以根据需求加锁。
- * 如果[autoClose]设置为true，主线程会在空闲的时候关闭未使用的[AutoCloseable]，如果关闭时发生了异常，会回调[onCloseError]
+ * 如果[lock]不为null，会在创建和关闭对象的时候加锁，且主线程会在空闲的时候关闭未使用的[AutoCloseable]，如果关闭时发生了异常，会回调[onCloseError]。
+ * 如果[lock]为null，则不加锁，也不会自动关闭未使用的[AutoCloseable]。
  */
 open class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
     private val clazz: Class<T>,
-    private val autoClose: Boolean = true,
+    private val lock: Any? = Any(),
 ) {
     private val _holder: MutableMap<String, SingletonFactory<T>> = hashMapOf()
 
@@ -22,9 +22,13 @@ open class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
      * 根据[key]获取[clazz]接口的代理对象，代理对象代理[factory]创建的原始对象
      */
     fun create(key: String, factory: () -> T): T {
-        val singletonFactory = _holder.getOrPut(key) { SingletonFactory(clazz) }
-        if (autoClose) _idleHandler.register()
-        return singletonFactory.create(factory)
+        if (lock == null) {
+            return createUnlock(key, factory)
+        } else {
+            synchronized(lock) {
+                return createUnlock(key, factory)
+            }
+        }
     }
 
     /**
@@ -32,15 +36,29 @@ open class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
      */
     @Throws(Exception::class)
     fun close() {
-        closeInternal { throw it }
+        if (lock == null) {
+            closeUnlock { throw it }
+        } else {
+            synchronized(lock) {
+                closeUnlock { throw it }
+            }
+        }
     }
 
     private val _idleHandler = SafeIdleHandler {
-        closeInternal { onCloseError(it) }
-        _holder.isNotEmpty()
+        synchronized(checkNotNull(lock)) {
+            closeUnlock { onCloseError(it) }
+            _holder.isNotEmpty()
+        }
     }
 
-    private inline fun closeInternal(exceptionHandler: (Exception) -> Unit) {
+    private fun createUnlock(key: String, factory: () -> T): T {
+        val singletonFactory = _holder.getOrPut(key) { SingletonFactory(clazz) }
+        if (lock != null) _idleHandler.register()
+        return singletonFactory.create(factory)
+    }
+
+    private inline fun closeUnlock(exceptionHandler: (Exception) -> Unit) {
         val oldSize = _holder.size
 
         _holder.iterator().run {
@@ -68,7 +86,7 @@ open class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
     protected open fun onEmpty() {}
 
     /**
-     * 如果[autoClose]设置为true，主线程会在空闲的时候关闭未使用的[AutoCloseable]，如果关闭时发生了异常，会回调此方法
+     * 如果[lock]不为null，主线程会在空闲的时候关闭未使用的[AutoCloseable]，如果关闭时发生了异常，会回调此方法
      */
     protected open fun onCloseError(e: Exception) {}
 }
