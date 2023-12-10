@@ -6,7 +6,15 @@ interface FileResource : AutoCloseable {
     fun write(content: String)
 
     companion object {
-        private val _factory = FCloseableFactory(FileResource::class.java)
+        private val _factory = object : FCloseableFactory<FileResource>(FileResource::class.java) {
+            override fun onEmpty() {
+                logMsg { "factory empty" }
+            }
+
+            override fun onCloseError(e: Exception) {
+                logMsg { "factory close error:$e" }
+            }
+        }
 
         fun create(path: String): FileResource {
             return _factory.create(path) { FileResourceImpl(path) }

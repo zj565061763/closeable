@@ -9,8 +9,11 @@ import java.lang.reflect.Proxy
 import java.util.WeakHashMap
 
 /**
- * 此类不支持多线程并发，如果有多线程的应用场景，外部可以根据需求加锁，
- * 如果[autoClose]设置为true，则[close]方法会在主线程空闲的时候触发
+ * 此类不支持多线程并发，如果有多线程的应用场景，外部可以根据需求加锁。
+ *
+ * 如果[autoClose]设置为true，主线程会在空闲的时候关闭未使用的[AutoCloseable]，如果关闭时发生了异常，会回调[onCloseError]
+ *
+ * 如果[autoClose]设置为false，外部需要手动调用[close]来关闭未使用的[AutoCloseable]，如果关闭时发生了异常，会抛出异常
  */
 open class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
     private val clazz: Class<T>,
@@ -28,14 +31,19 @@ open class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
     }
 
     private val _idleHandler = SafeIdleHandler {
-        close()
+        closeInternal { onCloseError(it) }
         _holder.isNotEmpty()
     }
 
     /**
      * 关闭未使用的[AutoCloseable]
      */
+    @Throws(Exception::class)
     fun close() {
+        closeInternal { throw it }
+    }
+
+    private inline fun closeInternal(exceptionHandler: (Exception) -> Unit) {
         val oldSize = _holder.size
         _holder.iterator().run {
             while (hasNext()) {
@@ -43,6 +51,8 @@ open class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
                 item.value.closeable()?.let {
                     try {
                         it.close()
+                    } catch (e: Exception) {
+                        exceptionHandler(e)
                     } finally {
                         remove()
                     }
@@ -54,11 +64,19 @@ open class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
         }
     }
 
+    /**
+     * 工厂内部已经没有保存的对象了
+     */
     protected open fun onEmpty() {}
+
+    /**
+     * 如果[autoClose]设置为true，主线程会在空闲的时候关闭未使用的[AutoCloseable]，如果关闭时发生了异常，会回调此方法
+     */
+    protected open fun onCloseError(e: Exception) {}
 }
 
 private class SingletonFactory<T : AutoCloseable>(
-    private val clazz: Class<T>
+    private val clazz: Class<T>,
 ) : AutoCloseable, InvocationHandler {
     private var _instance: T? = null
     private val _holder = WeakHashMap<T, String>()
