@@ -1,12 +1,12 @@
 package com.sd.demo.closeable
 
-import com.sd.lib.closeable.FCloseableFactory
+import com.sd.lib.closeable.FAutoCloseableFactory
 
 interface FileResource : AutoCloseable {
     fun write(content: String)
 
     companion object {
-        private val _factory = object : FCloseableFactory<FileResource>(FileResource::class.java) {
+        private val _factory = object : FAutoCloseableFactory<FileResource>(FileResource::class.java) {
             override fun onEmpty() {
                 logMsg { "factory empty" }
             }
