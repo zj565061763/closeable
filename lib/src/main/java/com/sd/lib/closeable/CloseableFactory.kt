@@ -30,17 +30,17 @@ open class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
         return singletonFactory.create(factory)
     }
 
-    private val _idleHandler = SafeIdleHandler {
-        closeInternal { onCloseError(it) }
-        _holder.isNotEmpty()
-    }
-
     /**
      * 关闭未使用的[AutoCloseable]
      */
     @Throws(Exception::class)
     fun close() {
         closeInternal { throw it }
+    }
+
+    private val _idleHandler = SafeIdleHandler {
+        closeInternal { onCloseError(it) }
+        _holder.isNotEmpty()
     }
 
     private inline fun closeInternal(exceptionHandler: (Exception) -> Unit) {
