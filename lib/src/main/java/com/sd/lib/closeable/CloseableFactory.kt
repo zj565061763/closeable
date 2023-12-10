@@ -10,10 +10,7 @@ import java.util.WeakHashMap
 
 /**
  * 此类不支持多线程并发，如果有多线程的应用场景，外部可以根据需求加锁。
- *
  * 如果[autoClose]设置为true，主线程会在空闲的时候关闭未使用的[AutoCloseable]，如果关闭时发生了异常，会回调[onCloseError]
- *
- * 如果[autoClose]设置为false，外部需要手动调用[close]来关闭未使用的[AutoCloseable]，如果关闭时发生了异常，会抛出异常
  */
 open class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
     private val clazz: Class<T>,
