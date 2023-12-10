@@ -18,14 +18,14 @@ interface CloseableFactory<T> {
 /**
  * 主线程会在空闲的时候关闭未使用的[AutoCloseable]，如果关闭时发生了异常，会回调[onCloseError]方法
  */
-open class FAutoCloseableFactory<T : AutoCloseable>(
+open class FAutoCloseFactory<T : AutoCloseable>(
     private val clazz: Class<T>,
     private val lock: Any = Any(),
 ) : CloseableFactory<T> {
 
     private val _factory = object : CloseableFactoryImpl<T>(clazz) {
         override fun onEmpty() {
-            this@FAutoCloseableFactory.onEmpty()
+            this@FAutoCloseFactory.onEmpty()
         }
     }
 
@@ -66,7 +66,7 @@ private open class CloseableFactoryImpl<T : AutoCloseable>(
         return _holder.getOrPut(key) { SingletonFactory(clazz) }.create(factory)
     }
 
-    fun close(exceptionHandler: (Exception) -> Unit) {
+    inline fun close(exceptionHandler: (Exception) -> Unit) {
         val oldSize = _holder.size
 
         _holder.iterator().run {
