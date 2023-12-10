@@ -42,10 +42,10 @@ open class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
 
     private inline fun closeInternal(exceptionHandler: (Exception) -> Unit) {
         val oldSize = _holder.size
+
         _holder.iterator().run {
             while (hasNext()) {
-                val item = next()
-                item.value.closeable()?.let {
+                next().value.closeable()?.let {
                     try {
                         it.close()
                     } catch (e: Exception) {
@@ -56,6 +56,7 @@ open class FCloseableFactory<T : AutoCloseable> @JvmOverloads constructor(
                 }
             }
         }
+
         if (oldSize > 0 && _holder.isEmpty()) {
             onEmpty()
         }
