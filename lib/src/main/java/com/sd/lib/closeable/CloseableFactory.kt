@@ -62,6 +62,9 @@ private class CloseableFactoryImpl<T : AutoCloseable>(
         return _holder.getOrPut(key) { SingletonFactory(clazz) }.create(factory)
     }
 
+    /**
+     * 关闭未使用的[AutoCloseable]并返回剩余的个数
+     */
     inline fun close(
         onException: (Exception) -> Unit,
         onEmpty: () -> Unit,
