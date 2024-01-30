@@ -109,16 +109,15 @@ private class SingletonFactory<T : AutoCloseable>(
         require(clazz != AutoCloseable::class.java) { "clazz must not be:${AutoCloseable::class.java.name}" }
     }
 
-    @Suppress("UNCHECKED_CAST")
     fun create(factory: () -> T): T {
         _instance ?: factory().also {
             _instance = it
         }
 
         return _proxyRef?.get() ?: kotlin.run {
-            (Proxy.newProxyInstance(clazz.classLoader, arrayOf(clazz), this) as T).also {
-                _proxyRef = WeakReference(it)
-            }
+            val proxy = Proxy.newProxyInstance(clazz.classLoader, arrayOf(clazz), this)
+            @Suppress("UNCHECKED_CAST")
+            (proxy as T).also { _proxyRef = WeakReference(it) }
         }
     }
 
