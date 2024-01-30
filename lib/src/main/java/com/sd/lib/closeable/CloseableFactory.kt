@@ -160,8 +160,12 @@ private class SafeIdleHandler(private val block: () -> Boolean) {
         Looper.myLooper() ?: return
         _idleHandler?.let { return }
         IdleHandler {
-            block().also {
-                if (!it) _idleHandler = null
+            block().also { keep ->
+                if (keep) {
+                    // keep
+                } else {
+                    _idleHandler = null
+                }
             }
         }.also {
             _idleHandler = it
