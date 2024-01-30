@@ -8,9 +8,9 @@ import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
 
-interface CloseableFactory<T> {
+interface CloseableFactory<T : AutoCloseable> {
     /**
-     * 根据[key]获取接口的代理对象，来代理[factory]创建的原始对象
+     * 根据[key]返回接口的代理对象，来代理[factory]创建的原始对象
      */
     fun create(key: String, factory: () -> T): T
 }
