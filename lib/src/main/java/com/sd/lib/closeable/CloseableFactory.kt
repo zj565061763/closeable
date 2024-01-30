@@ -19,26 +19,24 @@ interface CloseableFactory<T : AutoCloseable> {
  * 主线程会在空闲的时候关闭未使用的[AutoCloseable]，如果关闭时发生了异常，会回调[onCloseError]方法
  */
 open class FAutoCloseFactory<T : AutoCloseable>(
-    private val clazz: Class<T>,
+    clazz: Class<T>,
     private val lock: Any = Any(),
 ) : CloseableFactory<T> {
 
-    private val _factory = object : CloseableFactoryImpl<T>(clazz) {
-        override fun onEmpty() {
-            this@FAutoCloseFactory.onEmpty()
-        }
-    }
+    private val _factory = CloseableFactoryImpl(clazz)
 
     private val _idleHandler = SafeIdleHandler {
         synchronized(lock) {
-            _factory.close { onCloseError(it) }
-            _factory.size > 0
+            _factory.close(
+                onException = { onCloseError(it) },
+                onEmpty = { onEmpty() },
+            ) > 0
         }
     }
 
     override fun create(key: String, factory: () -> T): T {
+        _idleHandler.register()
         synchronized(lock) {
-            _idleHandler.register()
             return _factory.create(key, factory)
         }
     }
@@ -54,19 +52,20 @@ open class FAutoCloseFactory<T : AutoCloseable>(
     protected open fun onCloseError(e: Exception) {}
 }
 
-private open class CloseableFactoryImpl<T : AutoCloseable>(
+private class CloseableFactoryImpl<T : AutoCloseable>(
     private val clazz: Class<T>,
 ) : CloseableFactory<T> {
 
     private val _holder: MutableMap<String, SingletonFactory<T>> = hashMapOf()
 
-    val size: Int get() = _holder.size
-
     override fun create(key: String, factory: () -> T): T {
         return _holder.getOrPut(key) { SingletonFactory(clazz) }.create(factory)
     }
 
-    inline fun close(exceptionHandler: (Exception) -> Unit) {
+    inline fun close(
+        onException: (Exception) -> Unit,
+        onEmpty: () -> Unit,
+    ): Int {
         val oldSize = _holder.size
 
         _holder.iterator().run {
@@ -75,7 +74,7 @@ private open class CloseableFactoryImpl<T : AutoCloseable>(
                     try {
                         it.close()
                     } catch (e: Exception) {
-                        exceptionHandler(e)
+                        onException(e)
                     } finally {
                         remove()
                     }
@@ -86,12 +85,9 @@ private open class CloseableFactoryImpl<T : AutoCloseable>(
         if (oldSize > 0 && _holder.isEmpty()) {
             onEmpty()
         }
-    }
 
-    /**
-     * 工厂内部已经没有保存的对象了
-     */
-    protected open fun onEmpty() {}
+        return _holder.size
+    }
 }
 
 /**
@@ -143,7 +139,9 @@ private class SingletonFactory<T : AutoCloseable>(
     }
 }
 
-private class SafeIdleHandler(private val block: () -> Boolean) {
+private class SafeIdleHandler(
+    private val block: () -> Boolean,
+) {
     private var _idleHandler: IdleHandler? = null
 
     fun register() {
@@ -156,7 +154,9 @@ private class SafeIdleHandler(private val block: () -> Boolean) {
     }
 
     private fun addIdleHandler() {
-        Looper.myLooper() ?: return
+        val myLooper = Looper.myLooper() ?: return
+        check(myLooper == Looper.getMainLooper())
+
         _idleHandler?.let { return }
         IdleHandler {
             block().also { keep ->
