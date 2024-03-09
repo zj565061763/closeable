@@ -1,6 +1,5 @@
 package com.sd.lib.closeable
 
-import android.os.Handler
 import android.os.Looper
 import android.os.MessageQueue.IdleHandler
 import java.lang.ref.WeakReference
@@ -10,44 +9,41 @@ import java.lang.reflect.Proxy
 
 interface CloseableFactory<T : AutoCloseable> {
     /**
-     * 根据[key]返回接口的代理对象，来代理[factory]创建的原始对象
+     * 根据[key]返回接口的代理对象，来代理[factory]创建的原始对象，
+     * 注意：此方法只能在主线程调用，否则会抛异常
      */
     fun create(key: String, factory: () -> T): T
 }
 
 /**
- * 主线程会在空闲的时候关闭未使用的[AutoCloseable]，如果关闭时发生了异常，会回调[onCloseError]方法
+ * 主线程会在空闲的时候关闭未使用的[AutoCloseable]
  */
 open class FAutoCloseFactory<T : AutoCloseable>(
     clazz: Class<T>,
-    private val lock: Any = Any(),
 ) : CloseableFactory<T> {
 
     private val _factory = CloseableFactoryImpl(clazz)
 
     private val _idleHandler = SafeIdleHandler {
-        synchronized(lock) {
-            _factory.close(
-                onException = { onCloseError(it) },
-                onEmpty = { onEmpty() },
-            ) > 0
-        }
+        _factory.close(
+            onException = { onCloseError(it) },
+            onEmpty = { onEmpty() },
+        ) > 0
     }
 
     override fun create(key: String, factory: () -> T): T {
+        check(Looper.myLooper() === Looper.getMainLooper()) { "Should be called on main thread." }
         _idleHandler.register()
-        synchronized(lock) {
-            return _factory.create(key, factory)
-        }
+        return _factory.create(key, factory)
     }
 
     /**
-     * 工厂内部已经没有保存的对象了
+     * 工厂内部已经没有保存的对象了(MainThread)
      */
     protected open fun onEmpty() {}
 
     /**
-     * 主线程会在空闲的时候关闭未使用的[AutoCloseable]，如果关闭时发生了异常，会回调此方法
+     * 主线程会在空闲的时候关闭未使用的[AutoCloseable]，如果关闭时发生了异常，会回调此方法(MainThread)
      */
     protected open fun onCloseError(e: Exception) {}
 }
@@ -148,18 +144,6 @@ private class SafeIdleHandler(
     private var _idleHandler: IdleHandler? = null
 
     fun register() {
-        val mainLooper = Looper.getMainLooper() ?: return
-        if (mainLooper === Looper.myLooper()) {
-            addIdleHandler()
-        } else {
-            Handler(mainLooper).post { addIdleHandler() }
-        }
-    }
-
-    private fun addIdleHandler() {
-        val myLooper = Looper.myLooper() ?: return
-        check(myLooper == Looper.getMainLooper())
-
         _idleHandler?.let { return }
         IdleHandler {
             block().also { keep ->
