@@ -57,10 +57,9 @@ private class CloseableFactoryImpl<T : AutoCloseable>(
     private val _refQueue = ReferenceQueue<T>()
 
     override fun create(key: String, factory: () -> T): T {
-        val singletonFactory = _holder.getOrPut(key) { SingletonFactory(clazz) }
-        return singletonFactory.create(
+        return _holder.getOrPut(key) { SingletonFactory(clazz) }.create(
             factory = factory,
-            refFactory = { WeakRef(it, _refQueue, key, singletonFactory) },
+            refFactory = { WeakRef(it, _refQueue, key) },
         )
     }
 
@@ -76,7 +75,7 @@ private class CloseableFactoryImpl<T : AutoCloseable>(
         while (true) {
             val ref = _refQueue.poll() ?: break
             check(ref is WeakRef)
-            ref.factory.closeable()?.let {
+            _holder[ref.key]?.closeable()?.let {
                 try {
                     it.close()
                 } catch (e: Exception) {
@@ -98,7 +97,6 @@ private class CloseableFactoryImpl<T : AutoCloseable>(
         referent: T,
         queue: ReferenceQueue<in T>,
         val key: String,
-        val factory: SingletonFactory<*>,
     ) : WeakReference<T>(referent, queue)
 }
 
