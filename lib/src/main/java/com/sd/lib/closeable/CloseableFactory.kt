@@ -76,7 +76,7 @@ private class CloseableFactoryImpl<T : AutoCloseable>(
         while (true) {
             val ref = _refQueue.poll() ?: break
             check(ref is WeakRef)
-            ref.singletonFactory.closeable()?.let {
+            ref.factory.closeable()?.let {
                 try {
                     it.close()
                 } catch (e: Exception) {
@@ -98,7 +98,7 @@ private class CloseableFactoryImpl<T : AutoCloseable>(
         referent: T,
         queue: ReferenceQueue<in T>,
         val key: String,
-        val singletonFactory: SingletonFactory<*>,
+        val factory: SingletonFactory<*>,
     ) : WeakReference<T>(referent, queue)
 }
 
