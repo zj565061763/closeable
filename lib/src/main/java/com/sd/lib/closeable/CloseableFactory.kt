@@ -27,7 +27,7 @@ open class FAutoCloseFactory<T : AutoCloseable>(
 
     private val _idleHandler = SafeIdleHandler {
         _factory.close(
-            onException = { onCloseError(it) },
+            onCloseError = { onCloseError(it) },
             onEmpty = { onEmpty() },
         ) > 0
     }
@@ -68,7 +68,7 @@ private class CloseableFactoryImpl<T : AutoCloseable>(
      * 关闭未使用的[AutoCloseable]并返回剩余的个数
      */
     inline fun close(
-        onException: (Exception) -> Unit,
+        onCloseError: (Exception) -> Unit,
         onEmpty: () -> Unit,
     ): Int {
         val oldSize = _holder.size
@@ -80,7 +80,7 @@ private class CloseableFactoryImpl<T : AutoCloseable>(
                 try {
                     it.close()
                 } catch (e: Exception) {
-                    onException(e)
+                    onCloseError(e)
                 } finally {
                     _holder.remove(ref.key)
                 }
