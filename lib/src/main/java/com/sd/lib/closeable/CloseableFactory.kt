@@ -142,7 +142,7 @@ private class SingletonFactory<T : AutoCloseable>(
     }
 
     fun closeable(): AutoCloseable? {
-        return if (_proxyRef?.get() == null) this else null
+        return this.takeIf { _proxyRef?.get() == null }
     }
 
     override fun close() {
