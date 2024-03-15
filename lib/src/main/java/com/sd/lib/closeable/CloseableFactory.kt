@@ -2,6 +2,7 @@ package com.sd.lib.closeable
 
 import android.os.Looper
 import android.os.MessageQueue.IdleHandler
+import java.lang.ref.ReferenceQueue
 import java.lang.ref.WeakReference
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
@@ -53,9 +54,14 @@ private class CloseableFactoryImpl<T : AutoCloseable>(
 ) : CloseableFactory<T> {
 
     private val _holder: MutableMap<String, SingletonFactory<T>> = hashMapOf()
+    private val _refQueue = ReferenceQueue<T>()
 
     override fun create(key: String, factory: () -> T): T {
-        return _holder.getOrPut(key) { SingletonFactory(clazz) }.create(factory)
+        val singletonFactory = _holder.getOrPut(key) { SingletonFactory(clazz) }
+        return singletonFactory.create(
+            factory = factory,
+            refFactory = { WeakRef(it, _refQueue, key, singletonFactory) },
+        )
     }
 
     /**
@@ -67,16 +73,16 @@ private class CloseableFactoryImpl<T : AutoCloseable>(
     ): Int {
         val oldSize = _holder.size
 
-        _holder.iterator().run {
-            while (hasNext()) {
-                next().value.closeable()?.let {
-                    try {
-                        it.close()
-                    } catch (e: Exception) {
-                        onException(e)
-                    } finally {
-                        remove()
-                    }
+        while (true) {
+            val ref = _refQueue.poll() ?: break
+            check(ref is WeakRef)
+            ref.singletonFactory.closeable()?.let {
+                try {
+                    it.close()
+                } catch (e: Exception) {
+                    onException(e)
+                } finally {
+                    _holder.remove(ref.key)
                 }
             }
         }
@@ -87,6 +93,13 @@ private class CloseableFactoryImpl<T : AutoCloseable>(
 
         return _holder.size
     }
+
+    class WeakRef<T>(
+        referent: T,
+        queue: ReferenceQueue<in T>,
+        val key: String,
+        val singletonFactory: SingletonFactory<*>,
+    ) : WeakReference<T>(referent, queue)
 }
 
 /**
@@ -104,7 +117,10 @@ private class SingletonFactory<T : AutoCloseable>(
         require(clazz != AutoCloseable::class.java) { "clazz must not be:${AutoCloseable::class.java.name}" }
     }
 
-    fun create(factory: () -> T): T {
+    fun create(
+        factory: () -> T,
+        refFactory: (T) -> WeakReference<T>,
+    ): T {
         _instance ?: factory().also {
             _instance = it
         }
@@ -112,7 +128,7 @@ private class SingletonFactory<T : AutoCloseable>(
         return _proxyRef?.get() ?: kotlin.run {
             val proxy = Proxy.newProxyInstance(clazz.classLoader, arrayOf(clazz), this)
             @Suppress("UNCHECKED_CAST")
-            (proxy as T).also { _proxyRef = WeakReference(it) }
+            (proxy as T).also { _proxyRef = refFactory(it) }
         }
     }
 
