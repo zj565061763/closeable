@@ -105,7 +105,7 @@ private class CloseableFactoryImpl<T : AutoCloseable>(
  */
 private class SingletonFactory<T : AutoCloseable>(
     private val clazz: Class<T>,
-) : AutoCloseable, InvocationHandler {
+) : InvocationHandler {
 
     private var _instance: T? = null
     private var _proxyRef: WeakReference<T>? = null
@@ -140,10 +140,10 @@ private class SingletonFactory<T : AutoCloseable>(
     }
 
     fun closeable(): AutoCloseable? {
-        return this.takeIf { _proxyRef?.get() == null }
+        return _closeable.takeIf { _proxyRef?.get() == null }
     }
 
-    override fun close() {
+    private val _closeable = AutoCloseable {
         try {
             _instance?.close()
         } finally {
