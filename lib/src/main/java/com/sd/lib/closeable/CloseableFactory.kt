@@ -1,5 +1,6 @@
 package com.sd.lib.closeable
 
+import android.os.Handler
 import android.os.Looper
 import android.os.MessageQueue.IdleHandler
 import java.lang.ref.ReferenceQueue
@@ -27,8 +28,18 @@ open class FAutoCloseFactory<T : AutoCloseable>(
 
     private val _idleHandler = SafeIdleHandler {
         _factory.close(
-            onCloseError = { onCloseError(it) },
-            onEmpty = { onEmpty() },
+            onCloseError = { e ->
+                // 异步通知
+                Handler(Looper.getMainLooper()).post {
+                    onCloseError(e)
+                }
+            },
+            onEmpty = {
+                // 异步通知
+                Handler(Looper.getMainLooper()).post {
+                    onEmpty()
+                }
+            },
         ) > 0
     }
 
