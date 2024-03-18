@@ -41,12 +41,12 @@ open class FAutoCloseFactory<T : AutoCloseable>(
     /**
      * 工厂内部已经没有保存的对象了(MainThread)
      */
-    protected open fun onEmpty() {}
+    protected open fun onEmpty() = Unit
 
     /**
      * 主线程会在空闲的时候关闭未使用的[AutoCloseable]，如果关闭时发生了异常，会回调此方法(MainThread)
      */
-    protected open fun onCloseError(e: Exception) {}
+    protected open fun onCloseError(e: Exception) = Unit
 }
 
 private class CloseableFactoryImpl<T : AutoCloseable>(
@@ -93,7 +93,7 @@ private class CloseableFactoryImpl<T : AutoCloseable>(
         return _holder.size
     }
 
-    class WeakRef<T>(
+    private class WeakRef<T>(
         referent: T,
         queue: ReferenceQueue<in T>,
         val key: String,
